@@ -36,6 +36,20 @@ export type ProductModule = {
 
 export const productModules: ProductModule[] = [
   {
+    slug: "calendar",
+    name: "Calendar",
+    shortName: "Calendar",
+    description:
+      "One calm calendar for plans, tasks, reminders, renewals, and the moments that matter.",
+    eyebrow: "Your time, connected",
+    icon: CalendarClock,
+    accent: "bg-brand-soft text-brand",
+    primaryAction: "Plan something",
+    metrics: [],
+    focus: [],
+    insight: "",
+  },
+  {
     slug: "life-vault",
     name: "Life Vault",
     shortName: "Vault",
@@ -109,14 +123,14 @@ export const productModules: ProductModule[] = [
   },
   {
     slug: "renewals",
-    name: "Renewals",
-    shortName: "Renewals",
+    name: "Responsibilities",
+    shortName: "Responsibilities",
     description:
       "Subscriptions, bills, EMIs, and policies with one reliable renewal calendar.",
     eyebrow: "Recurring commitments",
     icon: RefreshCw,
     accent: "bg-warning-soft text-warning",
-    primaryAction: "Add a renewal",
+    primaryAction: "Add a responsibility",
     metrics: [
       { label: "Monthly total", value: "₹0", detail: "Recurring spend" },
       { label: "Due soon", value: "0", detail: "Next 7 days" },
@@ -654,7 +668,9 @@ export const navigationGroups = [
         icon: Inbox,
       },
       ...productModules
-        .filter((item) => ["life-vault", "timeline"].includes(item.slug))
+        .filter((item) =>
+          ["calendar", "life-vault", "timeline"].includes(item.slug),
+        )
         .map((item) => ({ ...item, href: `/app/${item.slug}` })),
     ],
   },

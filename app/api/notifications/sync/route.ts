@@ -11,7 +11,13 @@ export async function GET(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
   const notifications = await db.notification.findMany({
-    where: { userId: session.user.id, status: "QUEUED" },
+    // The device schedules future reminders locally. Sending overdue rows here
+    // would make iOS fire a burst of stale alerts as soon as the app opens.
+    where: {
+      userId: session.user.id,
+      status: "QUEUED",
+      scheduledAt: { gt: new Date() },
+    },
     orderBy: { scheduledAt: "asc" },
     take: 100,
     select: { id: true, title: true, body: true, scheduledAt: true },

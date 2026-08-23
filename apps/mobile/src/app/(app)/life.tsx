@@ -15,6 +15,7 @@ import { CosmicBackground } from "@/components/cosmic-background";
 import { useTheme } from "@/hooks/use-theme";
 
 const areas = [
+  ["calendar", "Calendar", "Plans & reminders", "#FF6338", "/calendar"],
   [
     "folder.fill",
     "Life Vault",
@@ -25,7 +26,13 @@ const areas = [
   ["heart.fill", "Health", "3 goals active", "#FF5C71"],
   ["chart.line.uptrend.xyaxis", "Money", "On track", "#20A06A"],
   ["person.2.fill", "People", "2 follow-ups", "#8B5CF6"],
-  ["house.fill", "Home", "1 bill due", "#E58A00"],
+  [
+    "house.fill",
+    "Responsibilities",
+    "Bills, renewals and subscriptions",
+    "#E58A00",
+    "/responsibilities",
+  ],
   ["car.fill", "Vehicle", "Service in 12d", "#1484C8"],
   ["book.fill", "Learning", "32 min today", "#7C55D9"],
   ["target", "Goals", "4 in progress", "#E8527A"],

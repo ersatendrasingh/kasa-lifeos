@@ -195,6 +195,17 @@ export async function listDocuments(options: ListDocumentsOptions) {
     return [];
   }
 
+  // Backfill the current reminder policy lazily for existing vault records.
+  // The sync routine is idempotent, so ordinary reads only write when the
+  // document's expiry or the renewal cadence has actually changed.
+  await Promise.all(
+    documents
+      .filter((document) => document.expiresAt)
+      .map((document) =>
+        syncDocumentReminders(document.id, document.expiresAt),
+      ),
+  );
+
   if (!term) return documents;
 
   return documents
@@ -322,10 +333,25 @@ async function getVaultOverviewData(userId: string, now: Date, horizon: Date) {
  * warnings need no new delivery infrastructure.
  *
  * Lead times in the past are skipped: a passport expiring in 20 days should not
- * generate an immediately-overdue 90-day reminder. Existing rows are replaced so
- * editing an expiry date cannot leave stale reminders behind.
+ * generate an immediately-overdue six-month reminder. Existing rows are replaced
+ * so editing an expiry date cannot leave stale reminders behind.
  */
-export const REMINDER_LEAD_DAYS = [90, 30, 7] as const;
+/*
+ * Renewal lead time is not one-size-fits-all. A passport or insurance policy
+ * needs runway, whereas a short-lived record only needs a closer nudge. The
+ * final 15-day reminder is the non-negotiable safety net for every expiring
+ * document; a seven-day alert remains as the last call.
+ */
+function reminderLeadDays(input: { categorySlug: string; title: string }) {
+  const label = `${input.categorySlug} ${input.title}`.toLowerCase();
+  if (/(passport|visa|insurance|policy)/.test(label)) {
+    return [180, 90, 30, 15, 7];
+  }
+  if (/(vehicle|driving|licen[cs]e|rc\b|puc|medical)/.test(label)) {
+    return [90, 30, 15, 7];
+  }
+  return [60, 30, 15, 7];
+}
 
 export async function syncDocumentReminders(
   documentId: string,
@@ -333,9 +359,36 @@ export async function syncDocumentReminders(
 ) {
   const document = await db.document.findUnique({
     where: { id: documentId },
-    select: { userId: true, title: true },
+    select: { userId: true, title: true, categorySlug: true },
   });
   if (!document) return;
+
+  const now = Date.now();
+  const expiry = expiresAt;
+  const due = expiry
+    ? reminderLeadDays(document)
+        .map((leadDays) => {
+          const remindAt = new Date(expiry);
+          remindAt.setDate(remindAt.getDate() - leadDays);
+          return { leadDays, remindAt };
+        })
+        .filter((row) => row.remindAt.getTime() > now)
+    : [];
+
+  const existing = await db.documentReminder.findMany({
+    where: { documentId, status: "SCHEDULED" },
+    select: { leadDays: true, remindAt: true },
+  });
+  const alreadyCurrent =
+    existing.length === due.length &&
+    existing.every((row) =>
+      due.some(
+        (candidate) =>
+          candidate.leadDays === row.leadDays &&
+          candidate.remindAt.getTime() === row.remindAt.getTime(),
+      ),
+    );
+  if (alreadyCurrent) return;
 
   await db.documentReminder.deleteMany({ where: { documentId } });
   /*
@@ -352,18 +405,9 @@ export async function syncDocumentReminders(
     },
   });
 
-  if (!expiresAt) return;
+  if (!expiry || due.length === 0) return;
 
-  const now = Date.now();
-  const due = REMINDER_LEAD_DAYS.map((leadDays) => {
-    const remindAt = new Date(expiresAt);
-    remindAt.setDate(remindAt.getDate() - leadDays);
-    return { leadDays, remindAt };
-  }).filter((row) => row.remindAt.getTime() > now);
-
-  if (due.length === 0) return;
-
-  const expiryLabel = expiresAt.toLocaleDateString("en-IN", {
+  const expiryLabel = expiry.toLocaleDateString("en-IN", {
     day: "numeric",
     month: "short",
     year: "numeric",

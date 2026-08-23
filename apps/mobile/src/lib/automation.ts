@@ -39,6 +39,23 @@ export type TimelineEvent = {
   sourceType: string | null;
 };
 
+export type CalendarItem = {
+  id: string;
+  type: "EVENT" | "TASK" | "EXPIRY" | "MOMENT";
+  title: string;
+  detail: string | null;
+  date: string;
+  allDay: boolean;
+  budgetAmount?: string | null;
+  currency?: string | null;
+};
+
+export type CalendarChecklist = {
+  id: string;
+  title: string;
+  items: Array<{ id: string; title: string; completedAt: string | null }>;
+};
+
 export type AutomationAttachment = {
   id: string;
   eventId: string | null;
@@ -63,6 +80,14 @@ export async function listAutomationEvents() {
   );
   if (response.error) throw new Error(response.error.message);
   return response.data?.events ?? [];
+}
+
+export async function deleteAutomationEvent(id: string) {
+  const response = await apiFetch(
+    `/api/automation/events?id=${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+  );
+  if (response.error) throw new Error(response.error.message);
 }
 
 export async function listAutomationAttachments() {
@@ -107,7 +132,7 @@ export async function transcribeVoice(uri: string) {
     throw new Error("Keep voice captures under two minutes");
   }
   const fileData = await file.base64();
-  const response = await apiFetch<{ text: string }>(
+  const response = await apiFetch<{ text: string; englishText?: string }>(
     "/api/automation/transcribe",
     {
       method: "POST",
@@ -122,7 +147,10 @@ export async function transcribeVoice(uri: string) {
     throw new Error(errorMessage(response.error, "Could not transcribe voice"));
   }
   if (!response.data?.text) throw new Error("No speech was detected");
-  return response.data.text;
+  return {
+    text: response.data.text,
+    englishText: response.data.englishText || response.data.text,
+  };
 }
 
 export async function scanAutomationFile(input: {
@@ -189,6 +217,16 @@ export async function listTimelineEvents(year?: number) {
   }>(`/api/timeline${year ? `?year=${year}` : ""}`);
   if (response.error) throw new Error(response.error.message);
   return response.data ?? { events: [], years: [] };
+}
+
+export async function getCalendar(month: Date) {
+  const key = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}-01`;
+  const response = await apiFetch<{
+    items: CalendarItem[];
+    checklists: CalendarChecklist[];
+  }>(`/api/calendar?month=${key}`);
+  if (response.error) throw new Error(response.error.message);
+  return response.data ?? { items: [], checklists: [] };
 }
 
 export async function setTimelineEventHidden(id: string, hidden: boolean) {

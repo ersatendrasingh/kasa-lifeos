@@ -88,6 +88,16 @@ function formatDate(value: string | null) {
   });
 }
 
+function formatAddedAt(value: string) {
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
 function daysUntil(value: string) {
   return Math.ceil(
     (new Date(value).getTime() - Date.now()) / (24 * 60 * 60 * 1000),
@@ -157,12 +167,14 @@ function DocumentCard({
   onOpen,
   onToggleFavorite,
   onDelete,
+  deleting,
 }: {
   document: VaultDocument;
   customLabels: Map<string, string>;
   onOpen: () => void;
   onToggleFavorite: () => void;
   onDelete: () => void;
+  deleting: boolean;
 }) {
   const category = resolveDocumentCategory(document.categorySlug, customLabels);
   const Icon = document.kind === "PDF" ? FileText : FileImage;
@@ -201,7 +213,9 @@ function DocumentCard({
           </span>
         </div>
         <div className="mt-4 flex items-center justify-between gap-2">
-          <span className="text-muted-foreground text-xs">Tap to preview</span>
+          <span className="text-muted-foreground text-xs">
+            Added {formatAddedAt(document.createdAt)}
+          </span>
           {expiry !== null ? (
             <span
               className={cn(
@@ -239,10 +253,15 @@ function DocumentCard({
           variant="ghost"
           size="icon-sm"
           aria-label="Delete document"
+          disabled={deleting}
           className="text-muted-foreground hover:text-danger opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
           onClick={onDelete}
         >
-          <Trash2 className="size-4" />
+          {deleting ? (
+            <Spinner className="size-4" />
+          ) : (
+            <Trash2 className="size-4" />
+          )}
         </Button>
       </div>
     </article>
@@ -272,6 +291,90 @@ function FilterChip({
       {active ? <Check className="size-3.5" /> : null}
       {children}
     </button>
+  );
+}
+
+function DeleteDocumentDialog({
+  document,
+  deleting,
+  close,
+  onDelete,
+}: {
+  document: VaultDocument | null;
+  deleting: boolean;
+  close: () => void;
+  onDelete: () => void;
+}) {
+  if (!document) return null;
+  return (
+    <div
+      className="fixed inset-0 z-[10001] grid place-items-end bg-slate-950/40 p-3 backdrop-blur-[2px] sm:place-items-center sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-document-title"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !deleting) close();
+      }}
+    >
+      <section className="bg-background w-full max-w-md rounded-[1.75rem] border p-5 shadow-2xl sm:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <span className="bg-danger-soft text-danger flex size-11 shrink-0 items-center justify-center rounded-2xl">
+            <Trash2 className="size-5" />
+          </span>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Close"
+            disabled={deleting}
+            onClick={close}
+          >
+            <X />
+          </Button>
+        </div>
+        <h2
+          id="delete-document-title"
+          className="mt-4 text-xl font-semibold tracking-[-0.03em]"
+        >
+          Remove this document?
+        </h2>
+        <p className="text-muted-foreground mt-1.5 text-sm leading-6">
+          This permanently removes the file and its renewal reminders.
+        </p>
+        <div className="bg-muted/45 mt-5 flex items-center gap-3 rounded-2xl border p-3 text-left">
+          <span className="bg-background text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-xl border">
+            <FileText className="size-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold">
+              {document.title}
+            </span>
+            <span className="text-muted-foreground mt-0.5 block text-xs">
+              Added {formatAddedAt(document.createdAt)}
+            </span>
+          </span>
+        </div>
+        <p className="text-danger mt-3 flex items-center gap-1.5 text-xs font-medium">
+          <TriangleAlert className="size-3.5" /> This cannot be undone.
+        </p>
+        <div className="mt-6 flex gap-2">
+          <Button
+            variant="outline"
+            className="h-11 flex-1 rounded-xl"
+            disabled={deleting}
+            onClick={close}
+          >
+            Cancel
+          </Button>
+          <Button
+            className="h-11 flex-1 rounded-xl bg-rose-600 text-white hover:bg-rose-700"
+            disabled={deleting}
+            onClick={onDelete}
+          >
+            {deleting ? <Spinner className="text-white" /> : <Trash2 />}Remove
+          </Button>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -452,6 +555,8 @@ export function VaultScreen({ initial }: VaultScreenProps) {
   const [total, setTotal] = useState(initial.total);
   const [uploading, setUploading] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<VaultDocument | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [uploadNote, setUploadNote] = useState<string | null>(null);
   const [viewing, setViewing] = useState<VaultDocument | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -602,13 +707,7 @@ export function VaultScreen({ initial }: VaultScreenProps) {
   }
 
   async function remove(target: VaultDocument) {
-    if (
-      !window.confirm(
-        `Delete “${target.title}”? This permanently removes the file.`,
-      )
-    ) {
-      return;
-    }
+    setDeletingId(target.id);
     const drop = (items: VaultDocument[]) =>
       items.filter((item) => item.id !== target.id);
     setRecent(drop);
@@ -620,9 +719,12 @@ export function VaultScreen({ initial }: VaultScreenProps) {
       });
       if (!response.ok) throw new Error("Delete failed");
       setTotal((value) => Math.max(0, value - 1));
+      setDeleteTarget(null);
     } catch {
       setUploadNote("Could not delete this document. Please try again.");
       void refresh();
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -635,7 +737,8 @@ export function VaultScreen({ initial }: VaultScreenProps) {
           customLabels={customLabels}
           onOpen={() => setViewing(document)}
           onToggleFavorite={() => void toggleFavorite(document)}
-          onDelete={() => void remove(document)}
+          deleting={deletingId === document.id}
+          onDelete={() => setDeleteTarget(document)}
         />
       ))}
     </div>
@@ -1024,6 +1127,12 @@ export function VaultScreen({ initial }: VaultScreenProps) {
             if (saved) setPendingFile(null);
           });
         }}
+      />
+      <DeleteDocumentDialog
+        document={deleteTarget}
+        deleting={deletingId === deleteTarget?.id}
+        close={() => !deletingId && setDeleteTarget(null)}
+        onDelete={() => deleteTarget && void remove(deleteTarget)}
       />
     </main>
   );

@@ -10,8 +10,9 @@ import { Pressable, StyleSheet, Text, useColorScheme } from "react-native";
 import { Colors, MaxContentWidth, Spacing } from "@/constants/theme";
 
 const destinations = [
-  { name: "today", href: "/", label: "Home" },
+  { name: "today", href: "/", label: "My Day" },
   { name: "inbox", href: "/inbox", label: "Capture" },
+  { name: "calendar", href: "/calendar", label: "Calendar" },
   { name: "life", href: "/life", label: "Life" },
   { name: "timeline", href: "/timeline", label: "Timeline" },
 ] as const;

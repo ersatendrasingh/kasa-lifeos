@@ -10,6 +10,7 @@ import * as WebBrowser from "expo-web-browser";
 import { type ComponentProps, useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  DeviceEventEmitter,
   Modal,
   PanResponder,
   Platform,
@@ -24,6 +25,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/app-header";
+import { CompactNavDock } from "@/components/compact-nav-dock";
 import { CosmicBackground } from "@/components/cosmic-background";
 import { KasaSpinner } from "@/components/kasa-spinner";
 import { useTheme } from "@/hooks/use-theme";
@@ -78,6 +80,16 @@ function categoryFor(slug: string) {
   return categories.find(([key]) => key === slug) ?? categories[8];
 }
 
+function addedLabel(value: string) {
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
 export default function LifeVaultScreen() {
   const c = useTheme();
   const [documents, setDocuments] = useState<VaultDocument[]>([]);
@@ -96,6 +108,8 @@ export default function LifeVaultScreen() {
   );
   const [cropOpen, setCropOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<VaultDocument | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   const activeFilters = useMemo(
@@ -148,6 +162,7 @@ export default function LifeVaultScreen() {
     setRefreshing(true);
     try {
       await load();
+      DeviceEventEmitter.emit("kasa:calendar-updated");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not refresh");
     } finally {
@@ -397,36 +412,21 @@ export default function LifeVaultScreen() {
     }
   }
 
-  function confirmDelete(document: VaultDocument) {
-    Alert.alert(
-      "Delete document?",
-      `“${document.title}” will be permanently removed.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () =>
-            void (async () => {
-              try {
-                await deleteVaultDocument(document.id);
-                setDocuments((items) =>
-                  items.filter((item) => item.id !== document.id),
-                );
-                await Haptics.notificationAsync(
-                  Haptics.NotificationFeedbackType.Success,
-                );
-              } catch (error) {
-                setMessage(
-                  error instanceof Error
-                    ? error.message
-                    : "Could not delete document",
-                );
-              }
-            })(),
-        },
-      ],
-    );
+  async function deleteDocument(document: VaultDocument) {
+    setDeletingId(document.id);
+    try {
+      await deleteVaultDocument(document.id);
+      setDocuments((items) => items.filter((item) => item.id !== document.id));
+      DeviceEventEmitter.emit("kasa:calendar-updated");
+      setDeleteTarget(null);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Could not delete document",
+      );
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   function updateFilters(change: Partial<VaultFilters>) {
@@ -459,6 +459,11 @@ export default function LifeVaultScreen() {
               <Text style={[s.eyebrow, { color: c.brand }]}>
                 YOUR PRIVATE VAULT
               </Text>
+              {__DEV__ ? (
+                <Text style={[s.devBuild, { color: c.textSecondary }]}>
+                  LIVE DEVELOPMENT BUILD
+                </Text>
+              ) : null}
               <Text style={[s.title, { color: c.text }]}>
                 Everything important, in your pocket.
               </Text>
@@ -569,13 +574,17 @@ export default function LifeVaultScreen() {
               ]}
             >
               {uploading ? (
-                <KasaSpinner size={18} />
+                <KasaSpinner size={18} color="#FFFFFF" />
               ) : (
-                <SymbolView name="camera.fill" size={18} tintColor="#FFFFFF" />
+                <>
+                  <SymbolView
+                    name="camera.fill"
+                    size={18}
+                    tintColor="#FFFFFF"
+                  />
+                  <Text style={s.primaryCaptureText}>Scan</Text>
+                </>
               )}
-              <Text style={s.primaryCaptureText}>
-                {uploading ? "Saving…" : "Scan"}
-              </Text>
             </Pressable>
             <Pressable
               onPress={() => void choosePhoto()}
@@ -680,7 +689,8 @@ export default function LifeVaultScreen() {
                     colors={c}
                     onOpen={() => void openDocument(document)}
                     onFavorite={() => void toggleFavorite(document)}
-                    onDelete={() => confirmDelete(document)}
+                    deleting={deletingId === document.id}
+                    onDelete={() => setDeleteTarget(document)}
                   />
                 ))}
               </View>
@@ -688,6 +698,7 @@ export default function LifeVaultScreen() {
           )}
         </ScrollView>
       </SafeAreaView>
+      <CompactNavDock />
 
       <FilterSheet
         visible={filterOpen}
@@ -698,7 +709,7 @@ export default function LifeVaultScreen() {
         colors={c}
       />
       <UploadReviewSheet
-        pending={pendingUpload}
+        pending={cropOpen ? null : pendingUpload}
         uploading={uploading}
         close={() => setPendingUpload(null)}
         onRotate={() => void rotatePendingUpload()}
@@ -737,6 +748,13 @@ export default function LifeVaultScreen() {
               WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
           });
         }}
+        colors={c}
+      />
+      <DeleteConfirmSheet
+        document={deleteTarget}
+        deleting={deletingId === deleteTarget?.id}
+        close={() => !deletingId && setDeleteTarget(null)}
+        onDelete={() => deleteTarget && void deleteDocument(deleteTarget)}
         colors={c}
       />
     </View>
@@ -786,12 +804,14 @@ function DocumentRow({
   onOpen,
   onFavorite,
   onDelete,
+  deleting,
 }: {
   document: VaultDocument;
   colors: ReturnType<typeof useTheme>;
   onOpen: () => void;
   onFavorite: () => void;
   onDelete: () => void;
+  deleting: boolean;
 }) {
   const [, label, icon, accent] = categoryFor(document.categorySlug);
   const expiry = expiryLabel(document);
@@ -832,6 +852,9 @@ function DocumentRow({
         >
           {label}
           {document.idNumberMasked ? ` · ${document.idNumberMasked}` : ""}
+        </Text>
+        <Text style={[s.documentAddedAt, { color: colors.textSecondary }]}>
+          Added {addedLabel(document.createdAt)}
         </Text>
         {expiry ? (
           <View
@@ -887,6 +910,7 @@ function DocumentRow({
         </Pressable>
         <Pressable
           accessibilityLabel="Delete document"
+          disabled={deleting}
           onPress={(event) => {
             event.stopPropagation();
             onDelete();
@@ -894,7 +918,15 @@ function DocumentRow({
           hitSlop={8}
           style={s.rowButton}
         >
-          <SymbolView name="trash" size={15} tintColor={colors.textSecondary} />
+          {deleting ? (
+            <KasaSpinner size={15} />
+          ) : (
+            <SymbolView
+              name="trash"
+              size={15}
+              tintColor={colors.textSecondary}
+            />
+          )}
         </Pressable>
       </View>
     </Pressable>
@@ -1260,13 +1292,13 @@ function UploadReviewSheet({
             ]}
           >
             {uploading ? (
-              <KasaSpinner size={18} />
+              <KasaSpinner size={18} color="#FFFFFF" />
             ) : (
-              <SymbolView name="lock.fill" size={14} tintColor="#FFFFFF" />
+              <>
+                <SymbolView name="lock.fill" size={14} tintColor="#FFFFFF" />
+                <Text style={s.saveReviewText}>Save to Life Vault</Text>
+              </>
             )}
-            <Text style={s.saveReviewText}>
-              {uploading ? "Saving securely…" : "Save to Life Vault"}
-            </Text>
           </Pressable>
         </View>
       </View>
@@ -1467,6 +1499,68 @@ function CropEditor({
   );
 }
 
+function DeleteConfirmSheet({
+  document,
+  deleting,
+  close,
+  onDelete,
+  colors,
+}: {
+  document: VaultDocument | null;
+  deleting: boolean;
+  close: () => void;
+  onDelete: () => void;
+  colors: ReturnType<typeof useTheme>;
+}) {
+  if (!document) return null;
+  return (
+    <Modal transparent visible animationType="fade" onRequestClose={close}>
+      <View style={s.deleteBackdrop}>
+        <View style={[s.deleteDialog, { backgroundColor: colors.surface }]}>
+          <View style={s.deleteIcon}>
+            <SymbolView name="trash.fill" size={21} tintColor="#D44857" />
+          </View>
+          <Text style={[s.deleteTitle, { color: colors.text }]}>
+            Delete document?
+          </Text>
+          <Text style={[s.deleteCopy, { color: colors.textSecondary }]}>
+            “{document.title}” will be permanently removed from your Life Vault.
+          </Text>
+          <View style={s.deleteActions}>
+            <Pressable
+              disabled={deleting}
+              onPress={close}
+              style={[
+                s.deleteCancel,
+                { borderColor: colors.border, opacity: deleting ? 0.55 : 1 },
+              ]}
+            >
+              <Text style={[s.deleteCancelText, { color: colors.text }]}>
+                Keep it
+              </Text>
+            </Pressable>
+            <Pressable
+              disabled={deleting}
+              onPress={onDelete}
+              style={({ pressed }) => [
+                s.deleteConfirm,
+                { opacity: pressed || deleting ? 0.72 : 1 },
+              ]}
+            >
+              {deleting ? (
+                <KasaSpinner size={17} color="#FFFFFF" />
+              ) : (
+                <SymbolView name="trash.fill" size={14} tintColor="#FFFFFF" />
+              )}
+              <Text style={s.deleteConfirmText}>Delete</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function PdfCard({
   name,
   detail,
@@ -1637,6 +1731,12 @@ const s = StyleSheet.create({
   headingRow: { flexDirection: "row", gap: 14 },
   headingCopy: { flex: 1 },
   eyebrow: { fontSize: 9, fontWeight: "900", letterSpacing: 1.25 },
+  devBuild: {
+    fontSize: 8,
+    fontWeight: "900",
+    letterSpacing: 0.9,
+    marginTop: 4,
+  },
   title: {
     fontSize: 29,
     lineHeight: 34,
@@ -1768,6 +1868,7 @@ const s = StyleSheet.create({
   documentTitleRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   documentTitle: { flexShrink: 1, fontSize: 13, fontWeight: "900" },
   documentMeta: { fontSize: 10, marginTop: 3 },
+  documentAddedAt: { fontSize: 9, marginTop: 5, fontWeight: "600" },
   documentPreviewHint: { fontSize: 9, marginTop: 8, fontWeight: "700" },
   expiry: {
     alignSelf: "flex-start",
@@ -2090,4 +2191,54 @@ const s = StyleSheet.create({
     fontSize: 11,
     fontWeight: "900",
   },
+  deleteBackdrop: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 25,
+    backgroundColor: "rgba(17, 8, 5, 0.56)",
+  },
+  deleteDialog: {
+    width: "100%",
+    maxWidth: 340,
+    borderRadius: 28,
+    padding: 23,
+    alignItems: "center",
+  },
+  deleteIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 17,
+    backgroundColor: "#FDE8EA",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  deleteTitle: { fontSize: 18, fontWeight: "900", marginTop: 14 },
+  deleteCopy: {
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: "center",
+    marginTop: 7,
+  },
+  deleteActions: { flexDirection: "row", gap: 9, width: "100%", marginTop: 21 },
+  deleteCancel: {
+    flex: 1,
+    height: 46,
+    borderWidth: 1,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  deleteCancelText: { fontSize: 12, fontWeight: "900" },
+  deleteConfirm: {
+    flex: 1,
+    height: 46,
+    borderRadius: 15,
+    backgroundColor: "#D44857",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  deleteConfirmText: { color: "#FFFFFF", fontSize: 12, fontWeight: "900" },
 });

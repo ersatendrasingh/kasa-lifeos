@@ -10,9 +10,17 @@ export async function GET(request: Request) {
   if (!session?.user.id) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const visibleNow = { lte: new Date() };
   const [notifications, unreadCount] = await Promise.all([
     db.notification.findMany({
-      where: { userId: session.user.id, status: { not: "CANCELLED" } },
+      // A scheduled renewal is useful only when its time has arrived. Keeping
+      // future rows out of the inbox prevents years-away expiry dates from
+      // masquerading as alerts that need attention today.
+      where: {
+        userId: session.user.id,
+        status: { not: "CANCELLED" },
+        scheduledAt: visibleNow,
+      },
       orderBy: { createdAt: "desc" },
       take: 100,
       select: {
@@ -33,6 +41,7 @@ export async function GET(request: Request) {
         userId: session.user.id,
         readAt: null,
         status: { not: "CANCELLED" },
+        scheduledAt: visibleNow,
       },
     }),
   ]);

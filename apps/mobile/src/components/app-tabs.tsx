@@ -18,11 +18,13 @@ import SmartInboxScreen from "../app/(app)/inbox";
 import TodayScreen from "../app/(app)/index";
 import LifeScreen from "../app/(app)/life";
 import TimelineScreen from "../app/(app)/timeline";
+import CalendarScreen from "../app/calendar";
 import { useTheme } from "@/hooks/use-theme";
 
 const tabs = [
-  ["/", "Home", "house", "house.fill"],
+  ["/", "My Day", "sun.max", "sun.max.fill"],
   ["/inbox", "Capture", "sparkles", "sparkles"],
+  ["/calendar", "Calendar", "calendar", "calendar"],
   ["/life", "Life", "square.grid.2x2", "square.grid.2x2.fill"],
   ["/timeline", "Timeline", "clock", "clock.fill"],
 ] as const;
@@ -102,11 +104,14 @@ export default function AppTabs() {
         ref={pager}
         style={s.pager}
       >
-        <View key="home" style={s.page}>
+        <View key="my-day" style={s.page}>
           <TodayScreen />
         </View>
         <View key="capture" style={s.page}>
           <SmartInboxScreen />
+        </View>
+        <View key="calendar" style={s.page}>
+          <CalendarScreen compactNavigation={false} />
         </View>
         <View key="life" style={s.page}>
           <LifeScreen />
@@ -122,7 +127,7 @@ export default function AppTabs() {
             colorScheme="auto"
             glassEffectStyle="regular"
             isInteractive
-            style={[s.dock, { borderColor: dark ? "#FF805A38" : "#FFFFFFB8" }]}
+            style={s.dock}
             tintColor={dark ? "#2A1510A3" : "#FFF8F0A8"}
           >
             {dockContent}
@@ -136,9 +141,6 @@ export default function AppTabs() {
                 backgroundColor: dark
                   ? "rgba(29, 18, 14, 0.68)"
                   : "rgba(255, 250, 246, 0.7)",
-                borderColor: dark
-                  ? "rgba(255, 128, 90, 0.22)"
-                  : "rgba(255, 255, 255, 0.9)",
               },
             ]}
             tint={dark ? "dark" : "light"}
@@ -162,26 +164,25 @@ const s = StyleSheet.create({
     alignItems: "center",
   },
   dock: {
-    width: 296,
-    height: 58,
-    borderRadius: 23,
-    borderWidth: 1,
+    width: 360,
+    height: 64,
+    borderRadius: 32,
     overflow: "hidden",
     boxShadow: "0 12px 34px rgba(20, 7, 2, 0.28)",
   },
   dockContent: {
-    height: 56,
+    height: 64,
     flexDirection: "row",
     alignItems: "center",
-    padding: 4,
+    padding: 5,
   },
   tab: {
     flex: 1,
-    height: 48,
-    borderRadius: 18,
+    height: 54,
+    borderRadius: 27,
     alignItems: "center",
     justifyContent: "center",
     gap: 2,
   },
-  label: { fontSize: 8, fontWeight: "700", letterSpacing: 0.1 },
+  label: { fontSize: 7.5, fontWeight: "800", letterSpacing: 0.05 },
 });

@@ -89,6 +89,48 @@ export async function executeAutomationAction(
       result = { resourceType: "Reminder", resourceId: created.id };
       break;
     }
+    case "CREATE_CALENDAR_EVENT": {
+      const startsAt = date(action.dueAt, new Date(Date.now() + 86_400_000));
+      const created = await tx.calendarEvent.create({
+        data: {
+          userId,
+          sourceEventId: eventId,
+          title: action.title,
+          notes: action.details,
+          startsAt,
+          // Meeting-style events carry a real time. Plans such as trips remain
+          // all-day until the person supplies exact travel times.
+          allDay: action.category !== "MEETING",
+          budgetAmount: action.amount,
+          currency: action.currency ?? "INR",
+        },
+      });
+      result = { resourceType: "CalendarEvent", resourceId: created.id };
+      break;
+    }
+    case "CREATE_CHECKLIST": {
+      const itemTitles = (action.details ?? "")
+        .split("\n")
+        .map((item) => item.replace(/^[-•\d.\s]+/, "").trim())
+        .filter(Boolean)
+        .slice(0, 20);
+      const created = await tx.checklist.create({
+        data: {
+          userId,
+          title: action.title,
+          items: itemTitles.length
+            ? {
+                create: itemTitles.map((title, position) => ({
+                  title,
+                  position,
+                })),
+              }
+            : undefined,
+        },
+      });
+      result = { resourceType: "Checklist", resourceId: created.id };
+      break;
+    }
     case "LOG_EXPENSE": {
       const created = await tx.expense.create({
         data: {

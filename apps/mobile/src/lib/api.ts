@@ -18,12 +18,12 @@ function getMetroApiUrl() {
   }
 }
 
-// In a development build the phone may reach Metro over Wi-Fi, USB, or a
-// link-local interface. Deriving the API host from Metro keeps both routes in
-// sync and avoids stale hard-coded LAN addresses.
+// An explicit API URL wins in development. Metro may be reached through a USB
+// tunnel whose `localhost` does not expose the Next API on the phone; using it
+// first silently sent requests to the wrong/stale backend.
 export const API_URL =
-  getMetroApiUrl() ??
   process.env.EXPO_PUBLIC_API_URL ??
+  getMetroApiUrl() ??
   "http://localhost:3000";
 
 export function apiUrl(path: string) {

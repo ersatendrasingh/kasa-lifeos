@@ -43,7 +43,10 @@ export async function POST(request: Request) {
     "model",
     process.env.OPENAI_TRANSCRIBE_MODEL || "gpt-4o-mini-transcribe",
   );
-  form.set("prompt", "KASA LifeOS voice note. Hindi, Hinglish or English.");
+  form.set(
+    "prompt",
+    "KASA LifeOS voice note. Transcribe exactly as spoken; preserve Hindi script, Hinglish roman words and English. Do not translate in this transcription.",
+  );
   const response = await fetch(
     "https://api.openai.com/v1/audio/transcriptions",
     {
@@ -64,5 +67,36 @@ export async function POST(request: Request) {
   if (!result.text?.trim()) {
     return Response.json({ error: "No speech was detected" }, { status: 422 });
   }
-  return Response.json({ text: result.text.trim() });
+  const text = result.text.trim();
+  let englishText = text;
+  try {
+    const normalization = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: process.env.OPENAI_AUTOMATION_MODEL || "gpt-4o-mini",
+        store: false,
+        max_output_tokens: 320,
+        instructions:
+          "Translate this voice transcription to concise natural English for a private automation record. Preserve names, numbers, amounts, dates, intent and uncertainty. Return only the English text; do not add commentary.",
+        input: text,
+      }),
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (normalization.ok) {
+      const payload = (await normalization.json()) as {
+        output_text?: string;
+      };
+      if (payload.output_text?.trim()) englishText = payload.output_text.trim();
+    }
+  } catch {
+    // The original transcript is still safe for the automation planner, which
+    // understands Hindi and Hinglish. Never make voice capture fail because
+    // optional English normalization is unavailable.
+  }
+
+  return Response.json({ text, englishText });
 }

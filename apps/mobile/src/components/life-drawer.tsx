@@ -16,8 +16,9 @@ const sections = [
   {
     title: "TODAY",
     items: [
-      ["house.fill", "Home", "/"],
+      ["sun.max.fill", "My Day", "/"],
       ["sparkles", "Smart Capture", "/inbox"],
+      ["calendar", "Calendar", "/calendar"],
       ["clock.fill", "Life Timeline", "/timeline"],
     ],
   },
@@ -44,7 +45,9 @@ export function LifeDrawer({
   const c = useTheme();
   const insets = useSafeAreaInsets();
 
-  function navigate(href: "/" | "/inbox" | "/timeline" | "/life") {
+  function navigate(
+    href: "/" | "/inbox" | "/calendar" | "/timeline" | "/life",
+  ) {
     onClose();
     router.push(href);
   }

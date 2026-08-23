@@ -5,6 +5,7 @@
   "dependencies": {
     "@better-auth/expo": "^1.7.1",
     "@expo/ui": "~57.0.12",
+    "@react-native-community/datetimepicker": "9.1.0",
     "better-auth": "^1.7.1",
     "expo": "~57.0.15",
     "expo-blur": "~57.0.2",

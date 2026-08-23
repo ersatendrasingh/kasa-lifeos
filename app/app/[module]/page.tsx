@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ModuleScreen } from "@/components/app/module-screen";
+import { ResponsibilitiesScreen } from "@/components/app/responsibilities-screen";
 import { getProductModule, productModules } from "@/lib/app-navigation";
 
 type ModulePageProps = { params: Promise<{ module: string }> };
@@ -40,5 +41,6 @@ export default async function ProductModulePage({ params }: ModulePageProps) {
    * the existing node. A CSS enter animation on a reused DOM node never
    * restarts, so without this the transition would vanish between modules.
    */
+  if (slug === "renewals") return <ResponsibilitiesScreen />;
   return <ModuleScreen key={slug} module={productModule} />;
 }

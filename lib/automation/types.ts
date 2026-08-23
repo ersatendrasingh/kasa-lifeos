@@ -20,6 +20,8 @@ export const automationActionTypes = [
   "ADD_TIMELINE_EVENT",
   "CREATE_TASK",
   "CREATE_REMINDER",
+  "CREATE_CALENDAR_EVENT",
+  "CREATE_CHECKLIST",
   "LOG_EXPENSE",
   "ADD_SHOPPING_ITEM",
   "ADD_WISH",
