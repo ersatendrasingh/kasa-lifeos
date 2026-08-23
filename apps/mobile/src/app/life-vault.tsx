@@ -1,8 +1,10 @@
 import * as DocumentPicker from "expo-document-picker";
+import { File, Paths } from "expo-file-system";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
+import * as Sharing from "expo-sharing";
 import { SymbolView } from "expo-symbols";
 import * as WebBrowser from "expo-web-browser";
 import { type ComponentProps, useEffect, useMemo, useState } from "react";
@@ -48,6 +50,13 @@ const categories = [
 
 const emptyFilters: VaultFilters = { sort: "updated" };
 
+type PendingUpload = {
+  uri: string;
+  name: string;
+  mimeType: string;
+  source: "scan" | "photo" | "file";
+};
+
 function daysUntil(value: string) {
   return Math.ceil(
     (new Date(value).getTime() - Date.now()) / (24 * 60 * 60 * 1000),
@@ -79,6 +88,8 @@ export default function LifeVaultScreen() {
     document: VaultDocument;
     url: string | null;
   } | null>(null);
+  const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
+  const [sharing, setSharing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const activeFilters = useMemo(
@@ -158,18 +169,41 @@ export default function LifeVaultScreen() {
           : `Saved “${saved.document.title}”.`,
       );
       await load();
+      return true;
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Could not save this document",
       );
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return false;
     } finally {
       setUploading(false);
     }
   }
 
-  async function normalizeImage(uri: string) {
-    return manipulateAsync(uri, [], { compress: 0.9, format: SaveFormat.JPEG });
+  async function normalizeImage(uri: string, rotate = 0) {
+    return manipulateAsync(
+      uri,
+      [
+        ...(rotate ? [{ rotate }] : []),
+        { resize: { width: 2200 } },
+      ],
+      { compress: 0.9, format: SaveFormat.JPEG },
+    );
+  }
+
+  async function prepareImage(
+    uri: string,
+    name: string,
+    source: PendingUpload["source"],
+  ) {
+    const image = await normalizeImage(uri);
+    setPendingUpload({
+      uri: image.uri,
+      name: `${name.replace(/\.[^.]+$/, "")}.jpg`,
+      mimeType: "image/jpeg",
+      source,
+    });
   }
 
   async function scanWithCamera() {
@@ -184,16 +218,13 @@ export default function LifeVaultScreen() {
       }
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ["images"],
-        quality: 0.9,
+        quality: 1,
+        allowsEditing: true,
+        aspect: [3, 4],
       });
       const asset = result.assets?.[0];
       if (result.canceled || !asset) return;
-      const image = await normalizeImage(asset.uri);
-      await saveFile({
-        uri: image.uri,
-        name: "kasa-document-scan.jpg",
-        mimeType: "image/jpeg",
-      });
+      await prepareImage(asset.uri, "kasa-document-scan.jpg", "scan");
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Camera could not open",
@@ -205,16 +236,13 @@ export default function LifeVaultScreen() {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
-        quality: 0.9,
+        quality: 1,
+        allowsEditing: true,
+        aspect: [3, 4],
       });
       const asset = result.assets?.[0];
       if (result.canceled || !asset) return;
-      const image = await normalizeImage(asset.uri);
-      await saveFile({
-        uri: image.uri,
-        name: `${asset.fileName?.replace(/\.[^.]+$/, "") ?? "kasa-photo"}.jpg`,
-        mimeType: "image/jpeg",
-      });
+      await prepareImage(asset.uri, asset.fileName ?? "kasa-photo.jpg", "photo");
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Photos could not open",
@@ -231,18 +259,14 @@ export default function LifeVaultScreen() {
       const asset = result.assets?.[0];
       if (result.canceled || !asset) return;
       if (asset.mimeType?.startsWith("image/")) {
-        const image = await normalizeImage(asset.uri);
-        await saveFile({
-          uri: image.uri,
-          name: `${asset.name.replace(/\.[^.]+$/, "")}.jpg`,
-          mimeType: "image/jpeg",
-        });
+        await prepareImage(asset.uri, asset.name, "file");
         return;
       }
-      await saveFile({
+      setPendingUpload({
         uri: asset.uri,
         name: asset.name,
         mimeType: asset.mimeType ?? "application/pdf",
+        source: "file",
       });
     } catch (error) {
       setMessage(
@@ -255,19 +279,48 @@ export default function LifeVaultScreen() {
     setPreview({ document, url: null });
     try {
       const url = await vaultDocumentUrl(document.id);
-      if (document.mimeType === "application/pdf") {
-        setPreview(null);
-        await WebBrowser.openBrowserAsync(url, {
-          presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
-        });
-        return;
-      }
       setPreview({ document, url });
     } catch (error) {
       setPreview(null);
       setMessage(
         error instanceof Error ? error.message : "Could not open document",
       );
+    }
+  }
+
+  async function rotatePendingUpload() {
+    if (!pendingUpload?.mimeType.startsWith("image/")) return;
+    try {
+      const image = await normalizeImage(pendingUpload.uri, 90);
+      setPendingUpload((current) =>
+        current ? { ...current, uri: image.uri } : current,
+      );
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not rotate image");
+    }
+  }
+
+  async function sharePreview() {
+    if (!preview?.url) return;
+    setSharing(true);
+    try {
+      if (!(await Sharing.isAvailableAsync())) {
+        throw new Error("Sharing is not available on this device");
+      }
+      const extension = preview.document.mimeType === "application/pdf" ? "pdf" : "jpg";
+      const destination = new File(Paths.cache, `kasa-${preview.document.id}.${extension}`);
+      const file = await File.downloadFileAsync(preview.url, destination, {
+        idempotent: true,
+      });
+      await Sharing.shareAsync(file.uri, {
+        mimeType: preview.document.mimeType,
+        dialogTitle: `Share ${preview.document.title}`,
+      });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not share document");
+    } finally {
+      setSharing(false);
     }
   }
 
@@ -589,7 +642,40 @@ export default function LifeVaultScreen() {
         clear={() => setFilters(emptyFilters)}
         colors={c}
       />
-      <PreviewModal preview={preview} close={() => setPreview(null)} />
+      <UploadReviewSheet
+        pending={pendingUpload}
+        uploading={uploading}
+        close={() => setPendingUpload(null)}
+        onRotate={() => void rotatePendingUpload()}
+        onReplace={() => {
+          setPendingUpload(null);
+          void (pendingUpload?.source === "scan"
+            ? scanWithCamera()
+            : pendingUpload?.source === "file"
+              ? chooseFile()
+              : choosePhoto());
+        }}
+        onSave={() => {
+          if (!pendingUpload) return;
+          void saveFile(pendingUpload).then((saved) => {
+            if (saved) setPendingUpload(null);
+          });
+        }}
+        colors={c}
+      />
+      <PreviewSheet
+        preview={preview}
+        sharing={sharing}
+        close={() => setPreview(null)}
+        onShare={() => void sharePreview()}
+        onOpen={() => {
+          if (!preview?.url) return;
+          void WebBrowser.openBrowserAsync(preview.url, {
+            presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+          });
+        }}
+        colors={c}
+      />
     </View>
   );
 }
@@ -988,65 +1074,107 @@ function SheetOption({
   );
 }
 
-function PreviewModal({
-  preview,
+function UploadReviewSheet({
+  pending,
+  uploading,
   close,
+  onRotate,
+  onReplace,
+  onSave,
+  colors,
 }: {
-  preview: { document: VaultDocument; url: string | null } | null;
+  pending: PendingUpload | null;
+  uploading: boolean;
   close: () => void;
+  onRotate: () => void;
+  onReplace: () => void;
+  onSave: () => void;
+  colors: ReturnType<typeof useTheme>;
 }) {
-  if (!preview) return null;
+  if (!pending) return null;
+  const image = pending.mimeType.startsWith("image/");
+  const isScan = pending.source === "scan";
   return (
-    <Modal
-      visible
-      animationType="fade"
-      presentationStyle="fullScreen"
-      onRequestClose={close}
-    >
-      <View style={s.previewScreen}>
-        <SafeAreaView style={s.previewSafe}>
-          <View style={s.previewHead}>
+    <Modal transparent visible animationType="slide" onRequestClose={close}>
+      <View style={s.sheetBackdrop}>
+        <View style={[s.reviewSheet, { backgroundColor: colors.surface }]}>
+          <View style={[s.sheetHandle, { backgroundColor: colors.border }]} />
+          <View style={s.reviewHead}>
             <View style={s.previewTitleWrap}>
-              <Text numberOfLines={1} style={s.previewTitle}>
-                {preview.document.title}
+              <Text style={[s.reviewTitle, { color: colors.text }]}>
+                {isScan ? "Review your scan" : "Review before saving"}
               </Text>
-              <Text style={s.previewMeta}>
-                {preview.document.mimeType === "application/pdf"
-                  ? "PDF document"
-                  : "Private image preview"}
+              <Text style={[s.reviewSub, { color: colors.textSecondary }]}>
+                {image
+                  ? "Crop was applied. Rotate or replace it, then save."
+                  : "This file is ready. You can save it securely now."}
               </Text>
             </View>
-            <Pressable
-              onPress={close}
-              accessibilityLabel="Close preview"
-              style={s.previewClose}
-            >
-              <SymbolView name="xmark" size={18} tintColor="#FFFFFF" />
+            <Pressable onPress={close} hitSlop={8} style={s.reviewClose}>
+              <SymbolView name="xmark" size={16} tintColor={colors.textSecondary} />
             </Pressable>
           </View>
-          <View style={s.previewContent}>
-            {preview.url ? (
-              <Image
-                source={preview.url}
-                contentFit="contain"
-                transition={160}
-                style={s.previewImage}
-                alt={preview.document.title}
-                accessibilityLabel={preview.document.title}
-              />
+          <View style={[s.reviewPreview, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            {image ? (
+              <Image source={pending.uri} contentFit="contain" style={s.reviewImage} alt="Document ready to save" />
             ) : (
-              <View style={s.previewLoading}>
-                <KasaSpinner size={30} />
-                <Text style={s.previewLoadingText}>
-                  Opening secure preview…
-                </Text>
-              </View>
+              <PdfCard name={pending.name} detail="PDF · ready to save" colors={colors} />
             )}
           </View>
-          <Text style={s.previewHint}>
-            Pinch to zoom · Your document stays private
-          </Text>
-        </SafeAreaView>
+          <View style={s.reviewTools}>
+            {image ? (
+              <Pressable onPress={onRotate} style={[s.reviewTool, { borderColor: colors.border }]}>
+                <SymbolView name="rotate.right" size={16} tintColor={colors.text} />
+                <Text style={[s.reviewToolText, { color: colors.text }]}>Rotate</Text>
+              </Pressable>
+            ) : null}
+            <Pressable onPress={onReplace} style={[s.reviewTool, { borderColor: colors.border }]}>
+              <SymbolView name={isScan ? "camera.rotate" : "photo.on.rectangle"} size={16} tintColor={colors.text} />
+              <Text style={[s.reviewToolText, { color: colors.text }]}>{isScan ? "Retake" : "Replace"}</Text>
+            </Pressable>
+          </View>
+          <Pressable disabled={uploading} onPress={onSave} style={({ pressed }) => [s.saveReview, { backgroundColor: colors.brand, opacity: pressed || uploading ? 0.72 : 1 }]}>
+            {uploading ? <KasaSpinner size={18} /> : <SymbolView name="lock.fill" size={14} tintColor="#FFFFFF" />}
+            <Text style={s.saveReviewText}>{uploading ? "Saving securely…" : "Save to Life Vault"}</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function PdfCard({ name, detail, colors }: { name: string; detail: string; colors: ReturnType<typeof useTheme> }) {
+  return <View style={s.pdfPreview}><SymbolView name="doc.richtext.fill" size={40} tintColor="#D44857" /><Text style={[s.pdfName, { color: colors.text }]} numberOfLines={2}>{name}</Text><Text style={[s.pdfMeta, { color: colors.textSecondary }]}>{detail}</Text></View>;
+}
+
+function PreviewSheet({ preview, sharing, close, onShare, onOpen, colors }: {
+  preview: { document: VaultDocument; url: string | null } | null;
+  sharing: boolean;
+  close: () => void;
+  onShare: () => void;
+  onOpen: () => void;
+  colors: ReturnType<typeof useTheme>;
+}) {
+  if (!preview) return null;
+  const isPdf = preview.document.mimeType === "application/pdf";
+  return (
+    <Modal transparent visible animationType="slide" onRequestClose={close}>
+      <View style={s.sheetBackdrop}>
+        <View style={[s.previewSheet, { backgroundColor: colors.surface }]}>
+          <View style={[s.sheetHandle, { backgroundColor: colors.border }]} />
+          <View style={s.reviewHead}>
+            <View style={s.previewTitleWrap}><Text numberOfLines={1} style={[s.previewTitle, { color: colors.text }]}>{preview.document.title}</Text><Text style={[s.previewMeta, { color: colors.textSecondary }]}>{isPdf ? "PDF document" : "Secure image preview"}</Text></View>
+            <Pressable onPress={close} accessibilityLabel="Close preview" style={s.reviewClose}><SymbolView name="xmark" size={16} tintColor={colors.textSecondary} /></Pressable>
+          </View>
+          <View style={[s.compactPreview, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            {preview.url ? isPdf ? <PdfCard name={preview.document.title} detail="Tap open to read this PDF" colors={colors} /> : <Image source={preview.url} contentFit="contain" transition={160} style={s.previewImage} alt={preview.document.title} accessibilityLabel={preview.document.title} /> : <View style={s.previewLoading}><KasaSpinner size={30} /><Text style={[s.previewLoadingText, { color: colors.textSecondary }]}>Opening secure preview…</Text></View>}
+          </View>
+          <View style={s.previewActions}>
+            <Pressable disabled={!preview.url || sharing} onPress={onShare} style={[s.previewActionSecondary, { borderColor: colors.border, opacity: !preview.url || sharing ? 0.55 : 1 }]}><SymbolView name="square.and.arrow.up" size={16} tintColor={colors.text} /><Text style={[s.previewActionSecondaryText, { color: colors.text }]}>{sharing ? "Preparing…" : "Share"}</Text></Pressable>
+            <Pressable disabled={!preview.url} onPress={onOpen} style={[s.previewActionPrimary, { backgroundColor: colors.brand, opacity: !preview.url ? 0.55 : 1 }]}><SymbolView name={isPdf ? "arrow.up.right.square" : "arrow.up.left.and.arrow.down.right"} size={15} tintColor="#FFFFFF" /><Text style={s.previewActionPrimaryText}>{isPdf ? "Open PDF" : "View larger"}</Text></Pressable>
+          </View>
+          <Text style={[s.previewHint, { color: colors.textSecondary }]}>Private by default · share only when you choose</Text>
+        </View>
       </View>
     </Modal>
   );
@@ -1326,35 +1454,32 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   doneText: { color: "#FFFFFF", fontSize: 13, fontWeight: "900" },
-  previewScreen: { flex: 1, backgroundColor: "#070605" },
-  previewSafe: { flex: 1 },
-  previewHead: {
-    height: 66,
-    paddingHorizontal: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.1)",
+  reviewSheet: {
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingHorizontal: 20,
+    paddingBottom: Platform.select({ ios: 34, android: 24, default: 24 }),
   },
+  previewSheet: {
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingHorizontal: 20,
+    paddingBottom: Platform.select({ ios: 34, android: 24, default: 24 }),
+  },
+  reviewHead: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginTop: 17 },
+  reviewTitle: { fontSize: 19, fontWeight: "900", letterSpacing: -0.45 },
+  reviewSub: { fontSize: 11, lineHeight: 16, marginTop: 4 },
+  reviewClose: { width: 34, height: 34, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   previewTitleWrap: { flex: 1, minWidth: 0 },
-  previewTitle: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
-  previewMeta: { color: "rgba(255,255,255,0.52)", fontSize: 10, marginTop: 3 },
-  previewClose: {
-    width: 37,
-    height: 37,
-    borderRadius: 13,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  previewContent: {
-    flex: 1,
-    margin: 14,
-    borderRadius: 20,
-    overflow: "hidden",
-    backgroundColor: "#000000",
-  },
+  previewTitle: { fontSize: 15, fontWeight: "900" },
+  previewMeta: { fontSize: 10, marginTop: 3 },
+  reviewPreview: { height: 230, borderRadius: 20, borderWidth: 1, overflow: "hidden", marginTop: 16 },
+  compactPreview: { height: 245, borderRadius: 20, borderWidth: 1, overflow: "hidden", marginTop: 16 },
+  reviewImage: { width: "100%", height: "100%" },
   previewImage: { width: "100%", height: "100%" },
+  pdfPreview: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 30 },
+  pdfName: { fontSize: 13, fontWeight: "900", textAlign: "center", marginTop: 12 },
+  pdfMeta: { fontSize: 10, marginTop: 5 },
   previewLoading: {
     flex: 1,
     alignItems: "center",
@@ -1362,14 +1487,18 @@ const s = StyleSheet.create({
     gap: 12,
   },
   previewLoadingText: {
-    color: "rgba(255,255,255,0.65)",
     fontSize: 12,
     fontWeight: "700",
   },
-  previewHint: {
-    color: "rgba(255,255,255,0.42)",
-    textAlign: "center",
-    fontSize: 10,
-    paddingBottom: 12,
-  },
+  reviewTools: { flexDirection: "row", gap: 8, marginTop: 11 },
+  reviewTool: { flex: 1, height: 43, borderRadius: 14, borderWidth: 1, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6 },
+  reviewToolText: { fontSize: 11, fontWeight: "900" },
+  saveReview: { height: 51, borderRadius: 17, marginTop: 11, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 },
+  saveReviewText: { color: "#FFFFFF", fontSize: 13, fontWeight: "900" },
+  previewActions: { flexDirection: "row", gap: 8, marginTop: 12 },
+  previewActionSecondary: { flex: 1, height: 47, borderRadius: 16, borderWidth: 1, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6 },
+  previewActionSecondaryText: { fontSize: 12, fontWeight: "900" },
+  previewActionPrimary: { flex: 1, height: 47, borderRadius: 16, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6 },
+  previewActionPrimaryText: { color: "#FFFFFF", fontSize: 12, fontWeight: "900" },
+  previewHint: { textAlign: "center", fontSize: 10, marginTop: 11 },
 });
