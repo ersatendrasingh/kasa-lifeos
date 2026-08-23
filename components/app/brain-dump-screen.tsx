@@ -132,9 +132,9 @@ export function BrainDumpScreen({
   }
 
   return (
-    <main className="relative pb-8">
+    <main className="route-content-enter relative pb-8">
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <div className="bg-brand/12 absolute top-[-12rem] left-1/2 size-[42rem] -translate-x-1/2 rounded-full blur-[130px]" />
+        <div className="ambient-glow absolute top-0 left-1/2 size-[30rem] max-w-full -translate-x-1/2" />
         <div className="border-brand/15 absolute top-[-21rem] left-1/2 size-[46rem] -translate-x-1/2 rounded-full border" />
       </div>
 

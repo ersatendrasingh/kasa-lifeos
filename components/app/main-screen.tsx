@@ -46,11 +46,15 @@ export function MainScreen({ initialData }: MainScreenProps) {
   }
 
   return (
-    <main className="relative pb-4 lg:pb-8">
+    <main className="route-content-enter relative pb-4 lg:pb-8">
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
         <div className="border-brand/15 absolute -top-52 right-[-14rem] size-[38rem] rounded-full border" />
         <div className="border-brand/20 absolute -top-36 right-[-8rem] size-[26rem] rounded-full border" />
-        <div className="bg-brand/10 absolute top-0 left-0 h-80 w-96 blur-[100px]" />
+        {/*
+          Sits fully inside this overflow-hidden layer and fades to transparent
+          at its own bounds, so nothing is ever clipped mid-glow.
+        */}
+        <div className="ambient-glow absolute top-0 left-0 size-[32rem] max-w-full" />
       </div>
 
       <div className="relative w-full">

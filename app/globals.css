@@ -324,6 +324,24 @@
     background-image: var(--gradient-surface);
   }
 
+  /*
+   * Soft brand glow for hero areas.
+   *
+   * Uses a radial gradient rather than a blurred box because these sit inside
+   * `overflow-hidden` decorative layers, and clipping happens *after* blur — a
+   * blurred box whose edge crosses the boundary leaves a visible straight cut.
+   * `closest-side` resolves the gradient to transparent exactly at the
+   * element's own bounds, so it fades out before any clip can occur and stays
+   * edge-free at every viewport size.
+   */
+  .ambient-glow {
+    background-image: radial-gradient(
+      closest-side,
+      color-mix(in oklch, var(--brand) 15%, transparent),
+      transparent
+    );
+  }
+
   .surface-glass {
     background: color-mix(in oklch, var(--card) 88%, transparent);
     border-color: color-mix(in oklch, var(--border) 88%, transparent);
@@ -487,6 +505,106 @@
   animation: auth-sparkle 2.4s ease-in-out infinite;
 }
 
+/*
+ * Route transition feedback
+ * The /app subtree reads the session on the server, so navigations wait on a
+ * round trip. These animations acknowledge the click immediately while the
+ * next segment streams in. Everything is delayed so quick, prefetched
+ * navigations never flash an indicator.
+ */
+@keyframes route-progress-advance {
+  0% {
+    transform: translateX(-100%) scaleX(0.35);
+  }
+  55% {
+    transform: translateX(-15%) scaleX(0.75);
+  }
+  100% {
+    transform: translateX(100%) scaleX(0.45);
+  }
+}
+
+@keyframes route-fade-in {
+  to {
+    opacity: 1;
+  }
+}
+
+.route-progress {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 2px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.route-progress-visible {
+  animation: route-fade-in 140ms ease 120ms forwards;
+}
+
+.route-progress-bar {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--brand-secondary) 35%,
+    var(--brand) 65%,
+    transparent 100%
+  );
+  animation: route-progress-advance 1.1s ease-in-out infinite;
+}
+
+.route-loader {
+  opacity: 0;
+  animation: route-fade-in 180ms ease 180ms forwards;
+}
+
+/*
+ * Content enter animation, applied to each screen's root element so it starts
+ * exactly when real content mounts — not when the route changes, which would
+ * animate the loading spinner instead.
+ *
+ * app/app/[module]/page.tsx passes a `key` so React remounts the screen when the
+ * slug changes. Without it, /app/money to /app/health reuses the same DOM node
+ * (same component, same position) and a CSS animation on a reused node never
+ * restarts, so the transition would silently disappear between modules.
+ *
+ * The whole content area moves as one piece rather than staggering children,
+ * which keeps arrival calm. Opacity finishes ahead of the transform so content
+ * is readable while it settles, instead of reading as a long fade.
+ *
+ * The end keyframe resets transform to `none` rather than an equivalent identity
+ * transform: any lingering transform would make this element a containing block
+ * and break `position: sticky` or `fixed` inside pages.
+ */
+@keyframes route-content-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 22px, 0) scale(0.982);
+  }
+  55% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.route-content-enter {
+  /*
+   * An expo-out curve: most of the distance is covered early, then it eases out
+   * over a long tail. That slow settle is what reads as smooth rather than a
+   * short linear-feeling pop.
+   */
+  animation: route-content-in 680ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .auth-panel-enter,
   .auth-form-enter,
@@ -499,5 +617,26 @@
   .auth-sparkle {
     animation: none;
     opacity: 1;
+  }
+
+  .route-progress-bar {
+    animation: none;
+    background: var(--brand);
+  }
+
+  .route-progress-visible,
+  .route-loader {
+    animation-duration: 1ms;
+    animation-delay: 120ms;
+  }
+
+  /*
+   * Motion is dropped, but these animations are kept alive at a negligible
+   * duration so their fill still resolves opacity to 1. Using `animation: none`
+   * here would leave the elements stuck at their base opacity of 0.
+   */
+  .route-content-enter {
+    animation-duration: 1ms;
+    animation-timing-function: linear;
   }
 }

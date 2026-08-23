@@ -16,9 +16,9 @@ export function ModuleScreen({ module }: { module: ProductModule }) {
   const Icon = module.icon;
 
   return (
-    <main className="relative pb-6">
+    <main className="route-content-enter relative pb-6">
       <div className="pointer-events-none absolute inset-x-0 -top-8 -z-10 h-80 overflow-hidden">
-        <div className="bg-brand/10 absolute -top-24 left-1/3 size-80 rounded-full blur-[110px]" />
+        <div className="ambient-glow absolute top-0 left-0 size-80 max-w-full sm:left-1/4" />
       </div>
 
       <section className="surface-glass relative overflow-hidden rounded-[2rem] border p-6 sm:p-8 xl:p-10">

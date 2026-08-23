@@ -1,0 +1,1375 @@
+import * as DocumentPicker from "expo-document-picker";
+import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
+import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
+import * as ImagePicker from "expo-image-picker";
+import { SymbolView } from "expo-symbols";
+import * as WebBrowser from "expo-web-browser";
+import { type ComponentProps, useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { AppHeader } from "@/components/app-header";
+import { CosmicBackground } from "@/components/cosmic-background";
+import { KasaSpinner } from "@/components/kasa-spinner";
+import { useTheme } from "@/hooks/use-theme";
+import {
+  deleteVaultDocument,
+  listVaultDocuments,
+  setVaultFavourite,
+  uploadVaultDocument,
+  vaultDocumentUrl,
+  type VaultDocument,
+  type VaultFilters,
+} from "@/lib/documents";
+
+const categories = [
+  ["identity", "Identity", "person.text.rectangle", "#5B7CFA"],
+  ["financial", "Financial", "indianrupeesign.circle", "#159B62"],
+  ["vehicle", "Vehicle", "car.fill", "#D47A00"],
+  ["medical", "Medical", "cross.case.fill", "#E8527A"],
+  ["education", "Education", "graduationcap.fill", "#7251D5"],
+  ["employment", "Work", "briefcase.fill", "#1484C8"],
+  ["property", "Property", "house.fill", "#A66716"],
+  ["travel", "Travel", "airplane", "#5B7CFA"],
+  ["others", "Others", "square.grid.2x2.fill", "#826E65"],
+] as const;
+
+const emptyFilters: VaultFilters = { sort: "updated" };
+
+function daysUntil(value: string) {
+  return Math.ceil(
+    (new Date(value).getTime() - Date.now()) / (24 * 60 * 60 * 1000),
+  );
+}
+
+function expiryLabel(document: VaultDocument) {
+  if (!document.expiresAt) return null;
+  const days = daysUntil(document.expiresAt);
+  if (days < 0) return "Expired";
+  if (days === 0) return "Expires today";
+  return `${days}d left`;
+}
+
+function categoryFor(slug: string) {
+  return categories.find(([key]) => key === slug) ?? categories[8];
+}
+
+export default function LifeVaultScreen() {
+  const c = useTheme();
+  const [documents, setDocuments] = useState<VaultDocument[]>([]);
+  const [query, setQuery] = useState("");
+  const [filters, setFilters] = useState<VaultFilters>(emptyFilters);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [preview, setPreview] = useState<{
+    document: VaultDocument;
+    url: string | null;
+  } | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const activeFilters = useMemo(
+    () =>
+      Boolean(
+        filters.category ||
+        filters.favorites ||
+        filters.kind ||
+        filters.expiry ||
+        filters.sort !== "updated",
+      ),
+    [filters],
+  );
+
+  async function load(nextFilters = filters, nextQuery = query) {
+    const items = await listVaultDocuments({
+      ...nextFilters,
+      query: nextQuery,
+    });
+    setDocuments(items);
+  }
+
+  useEffect(() => {
+    let active = true;
+    const timer = setTimeout(
+      () => {
+        setLoading(true);
+        void listVaultDocuments({ ...filters, query })
+          .then((items) => active && setDocuments(items))
+          .catch(
+            (error) =>
+              active &&
+              setMessage(
+                error instanceof Error
+                  ? error.message
+                  : "Could not load Life Vault",
+              ),
+          )
+          .finally(() => active && setLoading(false));
+      },
+      query.trim() ? 220 : 0,
+    );
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [filters, query]);
+
+  async function refresh() {
+    setRefreshing(true);
+    try {
+      await load();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not refresh");
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  async function saveFile(input: {
+    uri: string;
+    name: string;
+    mimeType: string;
+  }) {
+    setUploading(true);
+    setMessage(null);
+    try {
+      const saved = await uploadVaultDocument({
+        ...input,
+        fileName: input.name,
+        category: filters.category,
+      });
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setMessage(
+        saved.extraction.aiUsed
+          ? `Saved “${saved.document.title}” and read its details.`
+          : `Saved “${saved.document.title}”.`,
+      );
+      await load();
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Could not save this document",
+      );
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function normalizeImage(uri: string) {
+    return manipulateAsync(uri, [], { compress: 0.9, format: SaveFormat.JPEG });
+  }
+
+  async function scanWithCamera() {
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          "Camera access needed",
+          "Allow camera access to scan and securely save a document.",
+        );
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        quality: 0.9,
+      });
+      const asset = result.assets?.[0];
+      if (result.canceled || !asset) return;
+      const image = await normalizeImage(asset.uri);
+      await saveFile({
+        uri: image.uri,
+        name: "kasa-document-scan.jpg",
+        mimeType: "image/jpeg",
+      });
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Camera could not open",
+      );
+    }
+  }
+
+  async function choosePhoto() {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.9,
+      });
+      const asset = result.assets?.[0];
+      if (result.canceled || !asset) return;
+      const image = await normalizeImage(asset.uri);
+      await saveFile({
+        uri: image.uri,
+        name: `${asset.fileName?.replace(/\.[^.]+$/, "") ?? "kasa-photo"}.jpg`,
+        mimeType: "image/jpeg",
+      });
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Photos could not open",
+      );
+    }
+  }
+
+  async function chooseFile() {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["application/pdf", "image/*"],
+        copyToCacheDirectory: true,
+      });
+      const asset = result.assets?.[0];
+      if (result.canceled || !asset) return;
+      if (asset.mimeType?.startsWith("image/")) {
+        const image = await normalizeImage(asset.uri);
+        await saveFile({
+          uri: image.uri,
+          name: `${asset.name.replace(/\.[^.]+$/, "")}.jpg`,
+          mimeType: "image/jpeg",
+        });
+        return;
+      }
+      await saveFile({
+        uri: asset.uri,
+        name: asset.name,
+        mimeType: asset.mimeType ?? "application/pdf",
+      });
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "File picker could not open",
+      );
+    }
+  }
+
+  async function openDocument(document: VaultDocument) {
+    setPreview({ document, url: null });
+    try {
+      const url = await vaultDocumentUrl(document.id);
+      if (document.mimeType === "application/pdf") {
+        setPreview(null);
+        await WebBrowser.openBrowserAsync(url, {
+          presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+        });
+        return;
+      }
+      setPreview({ document, url });
+    } catch (error) {
+      setPreview(null);
+      setMessage(
+        error instanceof Error ? error.message : "Could not open document",
+      );
+    }
+  }
+
+  async function toggleFavorite(document: VaultDocument) {
+    const favorite = !document.favorite;
+    setDocuments((items) =>
+      items.map((item) =>
+        item.id === document.id ? { ...item, favorite } : item,
+      ),
+    );
+    try {
+      await setVaultFavourite(document.id, favorite);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Could not update favourite",
+      );
+      void refresh();
+    }
+  }
+
+  function confirmDelete(document: VaultDocument) {
+    Alert.alert(
+      "Delete document?",
+      `“${document.title}” will be permanently removed.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () =>
+            void (async () => {
+              try {
+                await deleteVaultDocument(document.id);
+                setDocuments((items) =>
+                  items.filter((item) => item.id !== document.id),
+                );
+                await Haptics.notificationAsync(
+                  Haptics.NotificationFeedbackType.Success,
+                );
+              } catch (error) {
+                setMessage(
+                  error instanceof Error
+                    ? error.message
+                    : "Could not delete document",
+                );
+              }
+            })(),
+        },
+      ],
+    );
+  }
+
+  function updateFilters(change: Partial<VaultFilters>) {
+    setFilters((current) => ({ ...current, ...change }));
+  }
+
+  const category = filters.category ? categoryFor(filters.category) : null;
+  const filteredEmpty =
+    !loading && documents.length === 0 && (activeFilters || query.trim());
+
+  return (
+    <View style={[s.screen, { backgroundColor: c.background }]}>
+      <CosmicBackground />
+      <SafeAreaView edges={["top"]} style={s.safe}>
+        <ScrollView
+          contentContainerStyle={s.content}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => void refresh()}
+              tintColor={c.brand}
+            />
+          }
+          showsVerticalScrollIndicator={false}
+        >
+          <AppHeader label="Life Vault" />
+          <View style={s.headingRow}>
+            <View style={s.headingCopy}>
+              <Text style={[s.eyebrow, { color: c.brand }]}>
+                YOUR PRIVATE VAULT
+              </Text>
+              <Text style={[s.title, { color: c.text }]}>
+                Everything important, in your pocket.
+              </Text>
+              <Text style={[s.subtitle, { color: c.textSecondary }]}>
+                Find, preview, and protect your documents in seconds.
+              </Text>
+            </View>
+            <View style={[s.lock, { backgroundColor: c.brandSoft }]}>
+              <SymbolView name="lock.fill" size={18} tintColor={c.brand} />
+            </View>
+          </View>
+
+          <View
+            style={[
+              s.search,
+              { backgroundColor: c.surface, borderColor: c.border },
+            ]}
+          >
+            <SymbolView
+              name="magnifyingglass"
+              size={18}
+              tintColor={c.textSecondary}
+            />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search name, tag, or last 4 digits"
+              placeholderTextColor={c.textSecondary}
+              style={[s.searchInput, { color: c.text }]}
+            />
+            {query ? (
+              <Pressable
+                accessibilityLabel="Clear search"
+                onPress={() => setQuery("")}
+                hitSlop={10}
+              >
+                <SymbolView
+                  name="xmark.circle.fill"
+                  size={18}
+                  tintColor={c.textSecondary}
+                />
+              </Pressable>
+            ) : null}
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.filterRow}
+          >
+            <Pill
+              label="Filters"
+              icon="slider.horizontal.3"
+              active={activeFilters}
+              onPress={() => setFilterOpen(true)}
+              colors={c}
+            />
+            <Pill
+              label="Favourites"
+              icon="star.fill"
+              active={Boolean(filters.favorites)}
+              onPress={() => updateFilters({ favorites: !filters.favorites })}
+              colors={c}
+            />
+            <Pill
+              label="Expiring soon"
+              icon="exclamationmark.triangle.fill"
+              active={filters.expiry === "upcoming"}
+              onPress={() =>
+                updateFilters({
+                  expiry: filters.expiry === "upcoming" ? null : "upcoming",
+                })
+              }
+              colors={c}
+            />
+            <Pill
+              label="PDFs"
+              icon="doc.fill"
+              active={filters.kind === "PDF"}
+              onPress={() =>
+                updateFilters({ kind: filters.kind === "PDF" ? null : "PDF" })
+              }
+              colors={c}
+            />
+          </ScrollView>
+
+          {category ? (
+            <View style={[s.activeFilter, { backgroundColor: c.brandSoft }]}>
+              <Text style={[s.activeFilterText, { color: c.brand }]}>
+                Showing {category[1]}
+              </Text>
+              <Pressable onPress={() => updateFilters({ category: null })}>
+                <SymbolView name="xmark" size={13} tintColor={c.brand} />
+              </Pressable>
+            </View>
+          ) : null}
+
+          <View style={s.captureRow}>
+            <Pressable
+              onPress={() => void scanWithCamera()}
+              disabled={uploading}
+              style={({ pressed }) => [
+                s.primaryCapture,
+                {
+                  backgroundColor: c.brand,
+                  opacity: pressed || uploading ? 0.72 : 1,
+                },
+              ]}
+            >
+              {uploading ? (
+                <KasaSpinner size={18} />
+              ) : (
+                <SymbolView name="camera.fill" size={18} tintColor="#FFFFFF" />
+              )}
+              <Text style={s.primaryCaptureText}>
+                {uploading ? "Saving…" : "Scan"}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => void choosePhoto()}
+              disabled={uploading}
+              style={({ pressed }) => [
+                s.secondaryCapture,
+                {
+                  backgroundColor: c.surface,
+                  borderColor: c.border,
+                  opacity: pressed || uploading ? 0.72 : 1,
+                },
+              ]}
+            >
+              <SymbolView
+                name="photo.on.rectangle"
+                size={17}
+                tintColor={c.text}
+              />
+              <Text style={[s.secondaryCaptureText, { color: c.text }]}>
+                Photos
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => void chooseFile()}
+              disabled={uploading}
+              style={({ pressed }) => [
+                s.iconCapture,
+                {
+                  backgroundColor: c.surface,
+                  borderColor: c.border,
+                  opacity: pressed || uploading ? 0.72 : 1,
+                },
+              ]}
+              accessibilityLabel="Upload PDF or file"
+            >
+              <SymbolView name="doc.badge.plus" size={17} tintColor={c.text} />
+            </Pressable>
+          </View>
+          {message ? (
+            <View
+              style={[
+                s.message,
+                { backgroundColor: c.surface, borderColor: c.border },
+              ]}
+            >
+              <SymbolView name="sparkles" size={14} tintColor={c.brand} />
+              <Text style={[s.messageText, { color: c.textSecondary }]}>
+                {message}
+              </Text>
+            </View>
+          ) : null}
+
+          {loading ? (
+            <View style={s.loading}>
+              <KasaSpinner size={28} />
+              <Text style={[s.loadingText, { color: c.textSecondary }]}>
+                Loading your vault…
+              </Text>
+            </View>
+          ) : filteredEmpty ? (
+            <EmptyState
+              title="Nothing matches yet"
+              detail="Try a different word or clear one of your filters."
+              action="Clear filters"
+              onPress={() => {
+                setQuery("");
+                setFilters(emptyFilters);
+              }}
+              colors={c}
+            />
+          ) : documents.length === 0 ? (
+            <EmptyState
+              title="Your vault is ready"
+              detail="Scan your Aadhaar, PAN, passport, insurance or any important record. KASA will organize it for you."
+              action="Scan first document"
+              onPress={() => void scanWithCamera()}
+              colors={c}
+            />
+          ) : (
+            <>
+              <View style={s.sectionHead}>
+                <View>
+                  <Text style={[s.sectionTitle, { color: c.text }]}>
+                    {activeFilters || query ? "Results" : "Your documents"}
+                  </Text>
+                  <Text style={[s.sectionMeta, { color: c.textSecondary }]}>
+                    {documents.length} document
+                    {documents.length === 1 ? "" : "s"} · tap to preview
+                  </Text>
+                </View>
+                <View style={[s.count, { backgroundColor: c.brandSoft }]}>
+                  <Text style={[s.countText, { color: c.brand }]}>
+                    {documents.length}
+                  </Text>
+                </View>
+              </View>
+              <View style={s.documentList}>
+                {documents.map((document) => (
+                  <DocumentRow
+                    key={document.id}
+                    document={document}
+                    colors={c}
+                    onOpen={() => void openDocument(document)}
+                    onFavorite={() => void toggleFavorite(document)}
+                    onDelete={() => confirmDelete(document)}
+                  />
+                ))}
+              </View>
+            </>
+          )}
+        </ScrollView>
+      </SafeAreaView>
+
+      <FilterSheet
+        visible={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        filters={filters}
+        update={updateFilters}
+        clear={() => setFilters(emptyFilters)}
+        colors={c}
+      />
+      <PreviewModal preview={preview} close={() => setPreview(null)} />
+    </View>
+  );
+}
+
+function Pill({
+  label,
+  icon,
+  active,
+  onPress,
+  colors,
+}: {
+  label: string;
+  icon: ComponentProps<typeof SymbolView>["name"];
+  active: boolean;
+  onPress: () => void;
+  colors: ReturnType<typeof useTheme>;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        s.pill,
+        {
+          backgroundColor: active ? colors.brand : colors.surface,
+          borderColor: active ? colors.brand : colors.border,
+          opacity: pressed ? 0.72 : 1,
+        },
+      ]}
+    >
+      <SymbolView
+        name={icon}
+        size={13}
+        tintColor={active ? "#FFFFFF" : colors.textSecondary}
+      />
+      <Text style={[s.pillText, { color: active ? "#FFFFFF" : colors.text }]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function DocumentRow({
+  document,
+  colors,
+  onOpen,
+  onFavorite,
+  onDelete,
+}: {
+  document: VaultDocument;
+  colors: ReturnType<typeof useTheme>;
+  onOpen: () => void;
+  onFavorite: () => void;
+  onDelete: () => void;
+}) {
+  const [, label, icon, accent] = categoryFor(document.categorySlug);
+  const expiry = expiryLabel(document);
+  return (
+    <Pressable
+      onPress={onOpen}
+      style={({ pressed }) => [
+        s.document,
+        {
+          backgroundColor: colors.surface,
+          borderColor: colors.border,
+          opacity: pressed ? 0.72 : 1,
+        },
+      ]}
+    >
+      <View style={[s.documentIcon, { backgroundColor: `${accent}18` }]}>
+        <SymbolView
+          name={document.kind === "PDF" ? "doc.text.fill" : icon}
+          size={18}
+          tintColor={accent}
+        />
+      </View>
+      <View style={s.documentCopy}>
+        <View style={s.documentTitleRow}>
+          <Text
+            numberOfLines={1}
+            style={[s.documentTitle, { color: colors.text }]}
+          >
+            {document.title}
+          </Text>
+          {document.favorite ? (
+            <SymbolView name="star.fill" size={12} tintColor={colors.warning} />
+          ) : null}
+        </View>
+        <Text
+          numberOfLines={1}
+          style={[s.documentMeta, { color: colors.textSecondary }]}
+        >
+          {label}
+          {document.idNumberMasked ? ` · ${document.idNumberMasked}` : ""}
+        </Text>
+        {expiry ? (
+          <View
+            style={[
+              s.expiry,
+              {
+                backgroundColor:
+                  expiry === "Expired" ? "#FDE8EA" : colors.brandSoft,
+              },
+            ]}
+          >
+            <SymbolView
+              name="exclamationmark.triangle.fill"
+              size={10}
+              tintColor={expiry === "Expired" ? "#D44857" : colors.warning}
+            />
+            <Text
+              style={[
+                s.expiryText,
+                { color: expiry === "Expired" ? "#D44857" : colors.warning },
+              ]}
+            >
+              {expiry}
+            </Text>
+          </View>
+        ) : (
+          <Text
+            style={[s.documentPreviewHint, { color: colors.textSecondary }]}
+          >
+            Tap to preview
+          </Text>
+        )}
+      </View>
+      <View style={s.rowActions}>
+        <Pressable
+          accessibilityLabel={
+            document.favorite ? "Remove favourite" : "Add favourite"
+          }
+          onPress={(event) => {
+            event.stopPropagation();
+            onFavorite();
+          }}
+          hitSlop={8}
+          style={s.rowButton}
+        >
+          <SymbolView
+            name={document.favorite ? "star.fill" : "star"}
+            size={17}
+            tintColor={
+              document.favorite ? colors.warning : colors.textSecondary
+            }
+          />
+        </Pressable>
+        <Pressable
+          accessibilityLabel="Delete document"
+          onPress={(event) => {
+            event.stopPropagation();
+            onDelete();
+          }}
+          hitSlop={8}
+          style={s.rowButton}
+        >
+          <SymbolView name="trash" size={15} tintColor={colors.textSecondary} />
+        </Pressable>
+      </View>
+    </Pressable>
+  );
+}
+
+function EmptyState({
+  title,
+  detail,
+  action,
+  onPress,
+  colors,
+}: {
+  title: string;
+  detail: string;
+  action: string;
+  onPress: () => void;
+  colors: ReturnType<typeof useTheme>;
+}) {
+  return (
+    <View
+      style={[
+        s.empty,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+      ]}
+    >
+      <View style={[s.emptyIcon, { backgroundColor: colors.brandSoft }]}>
+        <SymbolView name="lock.doc.fill" size={24} tintColor={colors.brand} />
+      </View>
+      <Text style={[s.emptyTitle, { color: colors.text }]}>{title}</Text>
+      <Text style={[s.emptyDetail, { color: colors.textSecondary }]}>
+        {detail}
+      </Text>
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [
+          s.emptyButton,
+          { backgroundColor: colors.brand, opacity: pressed ? 0.72 : 1 },
+        ]}
+      >
+        <Text style={s.emptyButtonText}>{action}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function FilterSheet({
+  visible,
+  onClose,
+  filters,
+  update,
+  clear,
+  colors,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  filters: VaultFilters;
+  update: (change: Partial<VaultFilters>) => void;
+  clear: () => void;
+  colors: ReturnType<typeof useTheme>;
+}) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <Pressable style={s.sheetBackdrop} onPress={onClose}>
+        <Pressable
+          style={[s.sheet, { backgroundColor: colors.background }]}
+          onPress={(event) => event.stopPropagation()}
+        >
+          <View style={[s.sheetHandle, { backgroundColor: colors.border }]} />
+          <View style={s.sheetHead}>
+            <View>
+              <Text style={[s.sheetTitle, { color: colors.text }]}>
+                Filter documents
+              </Text>
+              <Text style={[s.sheetSub, { color: colors.textSecondary }]}>
+                Narrow down your vault instantly
+              </Text>
+            </View>
+            <Pressable onPress={clear}>
+              <Text style={[s.clearText, { color: colors.brand }]}>Reset</Text>
+            </Pressable>
+          </View>
+          <Text style={[s.filterLabel, { color: colors.textSecondary }]}>
+            CATEGORY
+          </Text>
+          <View style={s.categoryGrid}>
+            {categories.map(([slug, label, icon, accent]) => (
+              <Pressable
+                key={slug}
+                onPress={() =>
+                  update({ category: filters.category === slug ? null : slug })
+                }
+                style={[
+                  s.categoryButton,
+                  {
+                    backgroundColor:
+                      filters.category === slug
+                        ? `${accent}18`
+                        : colors.surface,
+                    borderColor:
+                      filters.category === slug ? accent : colors.border,
+                  },
+                ]}
+              >
+                <SymbolView name={icon} size={16} tintColor={accent} />
+                <Text style={[s.categoryText, { color: colors.text }]}>
+                  {label}
+                </Text>
+                {filters.category === slug ? (
+                  <SymbolView
+                    name="checkmark.circle.fill"
+                    size={14}
+                    tintColor={accent}
+                  />
+                ) : null}
+              </Pressable>
+            ))}
+          </View>
+          <Text style={[s.filterLabel, { color: colors.textSecondary }]}>
+            SHOW
+          </Text>
+          <View style={s.sheetOptions}>
+            <SheetOption
+              label="Favourites only"
+              selected={Boolean(filters.favorites)}
+              onPress={() => update({ favorites: !filters.favorites })}
+              colors={colors}
+            />
+            <SheetOption
+              label="Images only"
+              selected={filters.kind === "IMAGE"}
+              onPress={() =>
+                update({ kind: filters.kind === "IMAGE" ? null : "IMAGE" })
+              }
+              colors={colors}
+            />
+            <SheetOption
+              label="PDFs only"
+              selected={filters.kind === "PDF"}
+              onPress={() =>
+                update({ kind: filters.kind === "PDF" ? null : "PDF" })
+              }
+              colors={colors}
+            />
+            <SheetOption
+              label="Expiring in 90 days"
+              selected={filters.expiry === "upcoming"}
+              onPress={() =>
+                update({
+                  expiry: filters.expiry === "upcoming" ? null : "upcoming",
+                })
+              }
+              colors={colors}
+            />
+          </View>
+          <Text style={[s.filterLabel, { color: colors.textSecondary }]}>
+            SORT BY
+          </Text>
+          <View style={s.sortRow}>
+            {(
+              [
+                ["updated", "Recent"],
+                ["created", "Added"],
+                ["title", "A–Z"],
+                ["expiry", "Expiry"],
+              ] as const
+            ).map(([value, label]) => (
+              <Pressable
+                key={value}
+                onPress={() => update({ sort: value })}
+                style={[
+                  s.sortButton,
+                  {
+                    backgroundColor:
+                      filters.sort === value ? colors.brand : colors.surface,
+                    borderColor:
+                      filters.sort === value ? colors.brand : colors.border,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    s.sortText,
+                    { color: filters.sort === value ? "#FFFFFF" : colors.text },
+                  ]}
+                >
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <Pressable
+            onPress={onClose}
+            style={[s.doneButton, { backgroundColor: colors.brand }]}
+          >
+            <Text style={s.doneText}>Show documents</Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function SheetOption({
+  label,
+  selected,
+  onPress,
+  colors,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+  colors: ReturnType<typeof useTheme>;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[s.sheetOption, { borderColor: colors.border }]}
+    >
+      <Text style={[s.sheetOptionText, { color: colors.text }]}>{label}</Text>
+      <View
+        style={[
+          s.checkbox,
+          {
+            borderColor: selected ? colors.brand : colors.border,
+            backgroundColor: selected ? colors.brand : "transparent",
+          },
+        ]}
+      >
+        {selected ? (
+          <SymbolView name="checkmark" size={10} tintColor="#FFFFFF" />
+        ) : null}
+      </View>
+    </Pressable>
+  );
+}
+
+function PreviewModal({
+  preview,
+  close,
+}: {
+  preview: { document: VaultDocument; url: string | null } | null;
+  close: () => void;
+}) {
+  if (!preview) return null;
+  return (
+    <Modal
+      visible
+      animationType="fade"
+      presentationStyle="fullScreen"
+      onRequestClose={close}
+    >
+      <View style={s.previewScreen}>
+        <SafeAreaView style={s.previewSafe}>
+          <View style={s.previewHead}>
+            <View style={s.previewTitleWrap}>
+              <Text numberOfLines={1} style={s.previewTitle}>
+                {preview.document.title}
+              </Text>
+              <Text style={s.previewMeta}>
+                {preview.document.mimeType === "application/pdf"
+                  ? "PDF document"
+                  : "Private image preview"}
+              </Text>
+            </View>
+            <Pressable
+              onPress={close}
+              accessibilityLabel="Close preview"
+              style={s.previewClose}
+            >
+              <SymbolView name="xmark" size={18} tintColor="#FFFFFF" />
+            </Pressable>
+          </View>
+          <View style={s.previewContent}>
+            {preview.url ? (
+              <Image
+                source={preview.url}
+                contentFit="contain"
+                transition={160}
+                style={s.previewImage}
+                alt={preview.document.title}
+                accessibilityLabel={preview.document.title}
+              />
+            ) : (
+              <View style={s.previewLoading}>
+                <KasaSpinner size={30} />
+                <Text style={s.previewLoadingText}>
+                  Opening secure preview…
+                </Text>
+              </View>
+            )}
+          </View>
+          <Text style={s.previewHint}>
+            Pinch to zoom · Your document stays private
+          </Text>
+        </SafeAreaView>
+      </View>
+    </Modal>
+  );
+}
+
+const s = StyleSheet.create({
+  screen: { flex: 1 },
+  safe: { flex: 1 },
+  content: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 132 },
+  headingRow: { flexDirection: "row", gap: 14 },
+  headingCopy: { flex: 1 },
+  eyebrow: { fontSize: 9, fontWeight: "900", letterSpacing: 1.25 },
+  title: {
+    fontSize: 29,
+    lineHeight: 34,
+    fontWeight: "900",
+    letterSpacing: -1.25,
+    marginTop: 6,
+  },
+  subtitle: { fontSize: 13, lineHeight: 19, marginTop: 7 },
+  lock: {
+    width: 48,
+    height: 48,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  search: {
+    height: 54,
+    borderRadius: 19,
+    borderWidth: 1,
+    marginTop: 19,
+    paddingHorizontal: 15,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  searchInput: { flex: 1, fontSize: 13, marginLeft: 10, paddingVertical: 0 },
+  filterRow: { paddingTop: 11, gap: 8, paddingRight: 20 },
+  pill: {
+    height: 35,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 11,
+  },
+  pillText: { fontSize: 11, fontWeight: "800" },
+  activeFilter: {
+    alignSelf: "flex-start",
+    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginTop: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  activeFilterText: { fontSize: 11, fontWeight: "800" },
+  captureRow: { flexDirection: "row", gap: 8, marginTop: 17 },
+  primaryCapture: {
+    height: 48,
+    borderRadius: 17,
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  primaryCaptureText: { color: "#FFFFFF", fontSize: 14, fontWeight: "900" },
+  secondaryCapture: {
+    height: 48,
+    borderRadius: 17,
+    borderWidth: 1,
+    paddingHorizontal: 13,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  secondaryCaptureText: { fontSize: 12, fontWeight: "800" },
+  iconCapture: {
+    width: 48,
+    height: 48,
+    borderRadius: 17,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  message: {
+    borderWidth: 1,
+    borderRadius: 14,
+    flexDirection: "row",
+    gap: 7,
+    alignItems: "center",
+    marginTop: 10,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+  },
+  messageText: { flex: 1, fontSize: 11, lineHeight: 15, fontWeight: "600" },
+  loading: { paddingTop: 76, alignItems: "center", gap: 12 },
+  loadingText: { fontSize: 12, fontWeight: "700" },
+  sectionHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 25,
+    marginBottom: 11,
+  },
+  sectionTitle: { fontSize: 19, fontWeight: "900", letterSpacing: -0.5 },
+  sectionMeta: { fontSize: 10, marginTop: 3 },
+  count: {
+    minWidth: 31,
+    height: 31,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+  },
+  countText: { fontSize: 11, fontWeight: "900" },
+  documentList: { gap: 9 },
+  document: {
+    minHeight: 87,
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+  },
+  documentIcon: {
+    width: 43,
+    height: 43,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "flex-start",
+    marginTop: 1,
+  },
+  documentCopy: { flex: 1, minWidth: 0 },
+  documentTitleRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  documentTitle: { flexShrink: 1, fontSize: 13, fontWeight: "900" },
+  documentMeta: { fontSize: 10, marginTop: 3 },
+  documentPreviewHint: { fontSize: 9, marginTop: 8, fontWeight: "700" },
+  expiry: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 8,
+    marginTop: 7,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
+  expiryText: { fontSize: 9, fontWeight: "900" },
+  rowActions: { alignSelf: "stretch", justifyContent: "space-around" },
+  rowButton: {
+    width: 29,
+    height: 28,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  empty: {
+    borderWidth: 1,
+    borderRadius: 28,
+    marginTop: 26,
+    paddingHorizontal: 28,
+    paddingVertical: 34,
+    alignItems: "center",
+  },
+  emptyIcon: {
+    width: 58,
+    height: 58,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    letterSpacing: -0.4,
+    marginTop: 16,
+  },
+  emptyDetail: {
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 7,
+    textAlign: "center",
+  },
+  emptyButton: {
+    height: 43,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 19,
+  },
+  emptyButtonText: { color: "#FFFFFF", fontSize: 12, fontWeight: "900" },
+  sheetBackdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(17, 8, 5, 0.48)",
+  },
+  sheet: {
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingHorizontal: 20,
+    paddingBottom: Platform.select({ ios: 34, android: 24, default: 24 }),
+  },
+  sheetHandle: {
+    width: 42,
+    height: 4,
+    borderRadius: 4,
+    alignSelf: "center",
+    marginTop: 10,
+  },
+  sheetHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 18,
+  },
+  sheetTitle: { fontSize: 21, fontWeight: "900", letterSpacing: -0.5 },
+  sheetSub: { fontSize: 11, marginTop: 3 },
+  clearText: { fontSize: 12, fontWeight: "900" },
+  filterLabel: {
+    fontSize: 9,
+    letterSpacing: 1,
+    fontWeight: "900",
+    marginTop: 21,
+    marginBottom: 9,
+  },
+  categoryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
+  categoryButton: {
+    height: 37,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  categoryText: { fontSize: 10, fontWeight: "800" },
+  sheetOptions: { borderTopWidth: 1, borderTopColor: "transparent" },
+  sheetOption: {
+    minHeight: 45,
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  sheetOptionText: { fontSize: 13, fontWeight: "700" },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 7,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sortRow: { flexDirection: "row", gap: 7 },
+  sortButton: {
+    height: 35,
+    borderRadius: 11,
+    borderWidth: 1,
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sortText: { fontSize: 10, fontWeight: "900" },
+  doneButton: {
+    height: 48,
+    borderRadius: 16,
+    marginTop: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  doneText: { color: "#FFFFFF", fontSize: 13, fontWeight: "900" },
+  previewScreen: { flex: 1, backgroundColor: "#070605" },
+  previewSafe: { flex: 1 },
+  previewHead: {
+    height: 66,
+    paddingHorizontal: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.1)",
+  },
+  previewTitleWrap: { flex: 1, minWidth: 0 },
+  previewTitle: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
+  previewMeta: { color: "rgba(255,255,255,0.52)", fontSize: 10, marginTop: 3 },
+  previewClose: {
+    width: 37,
+    height: 37,
+    borderRadius: 13,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  previewContent: {
+    flex: 1,
+    margin: 14,
+    borderRadius: 20,
+    overflow: "hidden",
+    backgroundColor: "#000000",
+  },
+  previewImage: { width: "100%", height: "100%" },
+  previewLoading: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+  previewLoadingText: {
+    color: "rgba(255,255,255,0.65)",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  previewHint: {
+    color: "rgba(255,255,255,0.42)",
+    textAlign: "center",
+    fontSize: 10,
+    paddingBottom: 12,
+  },
+});

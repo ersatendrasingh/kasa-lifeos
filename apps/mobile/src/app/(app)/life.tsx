@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import {
   Pressable,
@@ -14,7 +15,13 @@ import { CosmicBackground } from "@/components/cosmic-background";
 import { useTheme } from "@/hooks/use-theme";
 
 const areas = [
-  ["folder.fill", "Life Vault", "14 documents", "#5B7CFA"],
+  [
+    "folder.fill",
+    "Life Vault",
+    "Your private documents",
+    "#5B7CFA",
+    "/life-vault",
+  ],
   ["heart.fill", "Health", "3 goals active", "#FF5C71"],
   ["chart.line.uptrend.xyaxis", "Money", "On track", "#20A06A"],
   ["person.2.fill", "People", "2 follow-ups", "#8B5CF6"],
@@ -37,7 +44,6 @@ const attention = [
 
 export default function LifeScreen() {
   const c = useTheme();
-
   return (
     <View style={[s.screen, { backgroundColor: c.background }]}>
       <CosmicBackground />
@@ -157,9 +163,10 @@ export default function LifeScreen() {
             </Pressable>
           </View>
           <View style={s.grid}>
-            {areas.map(([icon, label, detail, color]) => (
+            {areas.map(([icon, label, detail, color, href]) => (
               <Pressable
                 key={label}
+                onPress={() => href && router.push(href)}
                 style={({ pressed }) => [
                   s.areaCard,
                   {
@@ -191,7 +198,6 @@ export default function LifeScreen() {
               </Pressable>
             ))}
           </View>
-
           <Pressable style={[s.addArea, { borderColor: c.border }]}>
             <View style={[s.addIcon, { backgroundColor: c.brandSoft }]}>
               <SymbolView name="plus" size={15} tintColor={c.brand} />

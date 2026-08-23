@@ -71,6 +71,10 @@ export default function RootLayout() {
           <Stack.Screen name="(app)" />
           <Stack.Screen name="(auth)/sign-in" />
           <Stack.Screen
+            name="life-vault"
+            options={{ animation: "slide_from_right" }}
+          />
+          <Stack.Screen
             name="profile"
             options={{ animation: "slide_from_right" }}
           />
