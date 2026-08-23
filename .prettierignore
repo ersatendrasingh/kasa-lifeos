@@ -1,0 +1,10 @@
+.next
+app/generated/prisma
+node_modules
+package-lock.json
+apps/mobile/.expo
+apps/mobile/ios
+apps/mobile/dist-android
+apps/mobile/dist-ios
+apps/mobile/expo-env.d.ts
+apps/mobile/assets/expo.icon

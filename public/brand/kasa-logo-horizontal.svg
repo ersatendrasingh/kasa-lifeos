@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="190" viewBox="0 0 760 190">
+  <defs><linearGradient id="a" x1="25" y1="20" x2="165" y2="175" gradientUnits="userSpaceOnUse"><stop stop-color="#FF8A3D"/><stop offset=".52" stop-color="#FF5A1F"/><stop offset="1" stop-color="#E93F16"/></linearGradient></defs>
+  <rect x="10" y="10" width="170" height="170" rx="48" fill="url(#a)"/>
+  <path d="M63 52V138M67 102L124 52M88 88L129 138" fill="none" stroke="#fff" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M43 111C56 148 99 166 135 146C157 134 166 111 162 88" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width="5" stroke-linecap="round"/><circle cx="160" cy="77" r="6" fill="#FFF2E9"/>
+  <text x="216" y="118" fill="#2A1D17" font-family="Arial, Helvetica, sans-serif" font-size="82" font-weight="700" letter-spacing="-4">KASA</text>
+  <text x="486" y="116" fill="#7B6A61" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="600" letter-spacing="4">LIFE OS</text>
+</svg>

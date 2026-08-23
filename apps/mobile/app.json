@@ -1,0 +1,76 @@
+{
+  "expo": {
+    "name": "KASA LifeOS",
+    "slug": "kasa-life-os",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/kasa-launcher-icon-1024.png",
+    "scheme": "kasa",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "icon": "./assets/images/kasa-launcher-icon-1024.png",
+      "bundleIdentifier": "com.kasa.lifeos",
+      "supportsTablet": false
+    },
+    "android": {
+      "package": "com.kasa.lifeos",
+      "adaptiveIcon": {
+        "backgroundColor": "#FF4F1F",
+        "foregroundImage": "./assets/images/kasa-launcher-icon-1024.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/kasa-icon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FF4F1F",
+          "dark": {
+            "backgroundColor": "#FF4F1F"
+          },
+          "image": "./assets/images/kasa-launcher-icon-1024.png",
+          "imageWidth": 148
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow KASA to listen while you speak and organize your life.",
+          "speechRecognitionPermission": "Allow KASA to show your words live while you speak."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Allow KASA to scan receipts and life documents.",
+          "photosPermission": "Allow KASA to read only the photo you choose for automation."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#FF6338",
+          "defaultChannel": "kasa-reminders",
+          "sounds": ["./assets/sounds/kasa-tone.wav"],
+          "enableBackgroundRemoteNotifications": false
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow KASA to use Face ID to securely unlock your LifeOS."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

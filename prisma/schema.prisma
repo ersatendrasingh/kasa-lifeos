@@ -1,0 +1,658 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                    String                 @id @default(cuid())
+  name                  String
+  email                 String                 @unique
+  emailVerified         Boolean                @default(false)
+  image                 String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  accounts              Account[]
+  sessions              Session[]
+  passkeys              Passkey[]
+  profile               UserProfile?
+  captures              Capture[]
+  tasks                 Task[]
+  reminders             Reminder[]
+  ideas                 Idea[]
+  expenses              Expense[]
+  shoppingItems         ShoppingItem[]
+  wishes                Wish[]
+  timelineEvents        TimelineEvent[]
+  notifications         Notification[]
+  dashboardItems        DashboardWidget[]
+  automationConnections AutomationConnection[]
+  automationPolicies    AutomationPolicy[]
+  automationEvents      AutomationEvent[]
+  automationActions     AutomationAction[]
+  automationAttachments AutomationAttachment[]
+  lifeRecords           LifeRecord[]
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  userId                String
+  issuer                String
+  accountId             String
+  providerId            String
+  refreshToken          String?   @db.Text
+  accessToken           String?   @db.Text
+  scope                 String?
+  idToken               String?   @db.Text
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  password              String?   @db.Text
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([issuer, accountId])
+  @@index([userId])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String   @db.Text
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+}
+
+model Passkey {
+  id           String   @id @default(cuid())
+  name         String?
+  publicKey    String   @db.Text
+  userId       String
+  credentialID String   @unique
+  counter      Int
+  deviceType   String
+  backedUp     Boolean
+  transports   String?
+  createdAt    DateTime @default(now())
+  aaguid       String?
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KASA personalized platform foundation
+// ─────────────────────────────────────────────────────────────────────────────
+
+model UserProfile {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  preferredName      String?
+  timezone           String   @default("Asia/Kolkata")
+  locale             String   @default("en-IN")
+  currency           String   @default("INR")
+  weekStartsOn       Int      @default(1)
+  quietHoursStart    String?
+  quietHoursEnd      String?
+  onboardingComplete Boolean  @default(false)
+  preferences        Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model DashboardWidget {
+  id        String              @id @default(cuid())
+  userId    String
+  type      DashboardWidgetType
+  position  Int
+  size      DashboardWidgetSize @default(MEDIUM)
+  enabled   Boolean             @default(true)
+  config    Json?
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+  @@index([userId, enabled, position])
+}
+
+// Every unstructured thought lands here first. A classifier can later promote
+// it to one typed entity while retaining the original input and audit trail.
+model Capture {
+  id              String            @id @default(cuid())
+  userId          String
+  rawText         String            @db.Text
+  normalizedTitle String
+  category        CaptureCategory
+  status          CaptureStatus     @default(CLASSIFIED)
+  classifier      CaptureClassifier @default(RULES)
+  confidence      Float
+  source          CaptureSource     @default(WEB)
+  dueAt           DateTime?
+  amount          Decimal?          @db.Decimal(14, 2)
+  currency        String?
+  metadata        Json?
+  classifiedAt    DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task            Task?
+  reminder        Reminder?
+  idea            Idea?
+  expense         Expense?
+  shoppingItem    ShoppingItem?
+  wish            Wish?
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, category, status])
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  userId      String
+  captureId   String?    @unique
+  title       String
+  description String?    @db.Text
+  status      TaskStatus @default(TODO)
+  priority    Int        @default(2)
+  dueAt       DateTime?
+  completedAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  capture     Capture?   @relation(fields: [captureId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, dueAt])
+}
+
+model Reminder {
+  id            String         @id @default(cuid())
+  userId        String
+  captureId     String?        @unique
+  title         String
+  notes         String?        @db.Text
+  remindAt      DateTime
+  status        ReminderStatus @default(SCHEDULED)
+  recurrence    Json?
+  targetType    String?
+  targetId      String?
+  lastTriggered DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  capture       Capture?       @relation(fields: [captureId], references: [id], onDelete: SetNull)
+  notifications Notification[]
+
+  @@index([userId, status, remindAt])
+  @@index([status, remindAt])
+}
+
+model Idea {
+  id        String     @id @default(cuid())
+  userId    String
+  captureId String?    @unique
+  title     String
+  body      String?    @db.Text
+  status    IdeaStatus @default(INBOX)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  capture   Capture?   @relation(fields: [captureId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, createdAt(sort: Desc)])
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  userId      String
+  captureId   String?  @unique
+  title       String
+  amount      Decimal? @db.Decimal(14, 2)
+  currency    String   @default("INR")
+  category    String?
+  merchant    String?
+  occurredAt  DateTime @default(now())
+  isConfirmed Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  capture     Capture? @relation(fields: [captureId], references: [id], onDelete: SetNull)
+
+  @@index([userId, occurredAt(sort: Desc)])
+  @@index([userId, isConfirmed])
+}
+
+model ShoppingItem {
+  id        String             @id @default(cuid())
+  userId    String
+  captureId String?            @unique
+  title     String
+  quantity  Decimal?           @db.Decimal(10, 2)
+  unit      String?
+  status    ShoppingItemStatus @default(TO_BUY)
+  url       String?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  capture   Capture?           @relation(fields: [captureId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, createdAt(sort: Desc)])
+}
+
+model Wish {
+  id           String     @id @default(cuid())
+  userId       String
+  captureId    String?    @unique
+  title        String
+  notes        String?    @db.Text
+  status       WishStatus @default(WISHED)
+  targetAmount Decimal?   @db.Decimal(14, 2)
+  currency     String?    @default("INR")
+  targetDate   DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  capture      Capture?   @relation(fields: [captureId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, targetDate])
+}
+
+model TimelineEvent {
+  id         String             @id @default(cuid())
+  userId     String
+  type       TimelineEventType
+  title      String
+  summary    String?            @db.Text
+  occurredAt DateTime           @default(now())
+  sourceType String?
+  sourceId   String?
+  visibility TimelineVisibility @default(PRIVATE)
+  hiddenAt    DateTime?
+  metadata   Json?
+  createdAt  DateTime           @default(now())
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, occurredAt(sort: Desc)])
+  @@index([userId, hiddenAt, occurredAt(sort: Desc)])
+  @@index([userId, type, occurredAt(sort: Desc)])
+  @@index([sourceType, sourceId])
+}
+
+model Notification {
+  id          String              @id @default(cuid())
+  userId      String
+  reminderId  String?
+  channel     NotificationChannel
+  status      NotificationStatus  @default(QUEUED)
+  title       String
+  body        String?             @db.Text
+  scheduledAt DateTime
+  sentAt      DateTime?
+  readAt      DateTime?
+  attempts    Int                 @default(0)
+  metadata    Json?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reminder    Reminder?           @relation(fields: [reminderId], references: [id], onDelete: SetNull)
+
+  @@index([status, scheduledAt])
+  @@index([userId, readAt, createdAt(sort: Desc)])
+}
+
+// Every external or user-initiated signal enters the same auditable pipeline.
+// Provider credentials are intentionally not stored here; production connectors
+// use the auth provider's encrypted token store or a dedicated secrets service.
+model AutomationConnection {
+  id                String                     @id @default(cuid())
+  userId            String
+  provider          AutomationProvider
+  status            AutomationConnectionStatus @default(AVAILABLE)
+  externalAccountId String?
+  displayName       String?
+  scopes            Json?
+  settings          Json?
+  lastSyncAt        DateTime?
+  errorMessage      String?                    @db.Text
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  user              User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events            AutomationEvent[]
+
+  @@unique([userId, provider])
+  @@index([userId, status])
+}
+
+model AutomationPolicy {
+  id             String               @id @default(cuid())
+  userId         String
+  source         AutomationSource
+  mode           AutomationPolicyMode @default(REVIEW_FIRST)
+  allowedActions Json?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, source])
+}
+
+model AutomationEvent {
+  id               String                @id @default(cuid())
+  userId           String
+  connectionId     String?
+  source           AutomationSource
+  sourceExternalId String?
+  contentType      String                @default("text/plain")
+  rawText          String?               @db.Text
+  status           AutomationEventStatus @default(PROCESSING)
+  summary          String?               @db.Text
+  confidence       Float?
+  occurredAt       DateTime              @default(now())
+  processedAt      DateTime?
+  metadata         Json?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection       AutomationConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  actions          AutomationAction[]
+  attachments      AutomationAttachment[]
+  lifeRecords      LifeRecord[]
+
+  @@unique([userId, source, sourceExternalId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, status, createdAt(sort: Desc)])
+}
+
+model AutomationAttachment {
+  id               String           @id @default(cuid())
+  userId           String
+  eventId          String?
+  objectKey        String           @unique
+  originalFileName String
+  mimeType         String
+  sizeBytes        Int
+  kind             String
+  createdAt        DateTime         @default(now())
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event            AutomationEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([eventId])
+}
+
+model AutomationAction {
+  id             String                 @id @default(cuid())
+  userId         String
+  eventId        String
+  type           AutomationActionType
+  status         AutomationActionStatus @default(PROPOSED)
+  title          String
+  confidence     Float
+  requiresReview Boolean                @default(true)
+  payload        Json
+  result         Json?
+  executedAt     DateTime?
+  errorMessage   String?                @db.Text
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event          AutomationEvent        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, createdAt(sort: Desc)])
+  @@index([eventId])
+}
+
+// A lightweight life graph record lets automation create useful entities now
+// (vehicle, document, subscription, trip, person) before every specialist
+// module gets its richer typed schema.
+model LifeRecord {
+  id            String           @id @default(cuid())
+  userId        String
+  sourceEventId String?
+  type          LifeRecordType
+  title         String
+  status        String           @default("ACTIVE")
+  occurredAt    DateTime?
+  expiresAt     DateTime?
+  attributes    Json?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceEvent   AutomationEvent? @relation(fields: [sourceEventId], references: [id], onDelete: SetNull)
+
+  @@index([userId, type, updatedAt(sort: Desc)])
+  @@index([userId, expiresAt])
+}
+
+enum CaptureCategory {
+  TASK
+  REMINDER
+  IDEA
+  EXPENSE
+  SHOPPING
+  WISH
+}
+
+enum CaptureStatus {
+  PROCESSING
+  CLASSIFIED
+  NEEDS_REVIEW
+  ARCHIVED
+}
+
+enum CaptureClassifier {
+  RULES
+  AI
+  USER
+}
+
+enum CaptureSource {
+  WEB
+  MOBILE
+  VOICE
+  IMPORT
+}
+
+enum AutomationProvider {
+  GMAIL
+  GOOGLE_CALENDAR
+  APPLE_CALENDAR
+  SMS
+  APPLE_HEALTH
+  HEALTH_CONNECT
+  PHOTOS
+  LOCATION
+  CONTACTS
+  NOTIFICATIONS
+  BROWSER_EXTENSION
+  WHATSAPP
+}
+
+enum AutomationConnectionStatus {
+  AVAILABLE
+  CONNECTING
+  CONNECTED
+  PAUSED
+  ERROR
+}
+
+enum AutomationSource {
+  MANUAL_TEXT
+  VOICE
+  CAMERA
+  DOCUMENT
+  EMAIL
+  CALENDAR
+  SMS
+  HEALTH
+  LOCATION
+  CONTACTS
+  NOTIFICATION
+  BROWSER
+  WHATSAPP
+}
+
+enum AutomationPolicyMode {
+  REVIEW_FIRST
+  AUTO_SAFE
+  PAUSED
+}
+
+enum AutomationEventStatus {
+  PROCESSING
+  ACTIONED
+  NEEDS_REVIEW
+  IGNORED
+  FAILED
+}
+
+enum AutomationActionType {
+  ADD_TIMELINE_EVENT
+  CREATE_TASK
+  CREATE_REMINDER
+  LOG_EXPENSE
+  ADD_SHOPPING_ITEM
+  ADD_WISH
+  SAVE_IDEA
+  UPSERT_LIFE_RECORD
+}
+
+enum AutomationActionStatus {
+  PROPOSED
+  NEEDS_REVIEW
+  EXECUTED
+  REJECTED
+  FAILED
+}
+
+enum LifeRecordType {
+  DOCUMENT
+  VEHICLE
+  SUBSCRIPTION
+  PURCHASE
+  TRIP
+  APPOINTMENT
+  PERSON
+  HEALTH
+  CAREER
+  HOME
+  LEARNING
+  OTHER
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum ReminderStatus {
+  SCHEDULED
+  TRIGGERED
+  SNOOZED
+  COMPLETED
+  CANCELLED
+}
+
+enum IdeaStatus {
+  INBOX
+  EXPLORING
+  PLANNED
+  ARCHIVED
+}
+
+enum ShoppingItemStatus {
+  TO_BUY
+  BOUGHT
+  SKIPPED
+}
+
+enum WishStatus {
+  WISHED
+  SAVING
+  ACHIEVED
+  ARCHIVED
+}
+
+enum TimelineEventType {
+  CAPTURED
+  TASK_COMPLETED
+  REMINDER_TRIGGERED
+  DOCUMENT_ADDED
+  FINANCE
+  HEALTH
+  CAREER
+  LEARNING
+  RELATIONSHIP
+  VEHICLE
+  HOME
+  ACHIEVEMENT
+  NOTE
+}
+
+enum TimelineVisibility {
+  PRIVATE
+  SHARED
+}
+
+enum NotificationChannel {
+  IN_APP
+  PUSH
+  EMAIL
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  FAILED
+  READ
+  CANCELLED
+}
+
+enum DashboardWidgetType {
+  TODAY_SCORE
+  STREAK
+  FOCUS
+  QUICK_CAPTURE
+  PENDING_BILLS
+  UPCOMING_EVENTS
+  HABITS
+  FINANCE
+  FOLLOW_UPS
+  BIRTHDAYS
+  LEARNING
+}
+
+enum DashboardWidgetSize {
+  SMALL
+  MEDIUM
+  LARGE
+  FULL
+}

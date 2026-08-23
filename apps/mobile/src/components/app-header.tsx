@@ -1,0 +1,163 @@
+import { router } from "expo-router";
+import { SymbolView } from "expo-symbols";
+import { useEffect, useState } from "react";
+import {
+  DeviceEventEmitter,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+
+import { LifeDrawer } from "@/components/life-drawer";
+import { useTheme } from "@/hooks/use-theme";
+import { authClient } from "@/lib/auth-client";
+import {
+  listNotifications,
+  NOTIFICATION_CHANGED_EVENT,
+} from "@/lib/notifications";
+
+export function AppHeader({ label }: { label: string }) {
+  const c = useTheme();
+  const { data: session } = authClient.useSession();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const initials =
+    session?.user.name
+      ?.trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "K";
+
+  useEffect(() => {
+    let active = true;
+    const refresh = () => {
+      void listNotifications()
+        .then((result) => {
+          if (active) setUnreadCount(result.unreadCount);
+        })
+        .catch(() => undefined);
+    };
+    refresh();
+    const subscription = DeviceEventEmitter.addListener(
+      NOTIFICATION_CHANGED_EVENT,
+      refresh,
+    );
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, []);
+
+  return (
+    <>
+      <View style={s.header}>
+        <Pressable
+          accessibilityLabel="Open life menu"
+          onPress={() => setDrawerOpen(true)}
+          style={[
+            s.button,
+            { backgroundColor: c.surface, borderColor: c.border },
+          ]}
+        >
+          <SymbolView name="line.3.horizontal" size={19} tintColor={c.text} />
+        </Pressable>
+        <View style={s.labelWrap}>
+          <View style={[s.liveDot, { backgroundColor: c.positive }]} />
+          <Text numberOfLines={1} style={[s.label, { color: c.textSecondary }]}>
+            {label}
+          </Text>
+        </View>
+        <View style={s.rightActions}>
+          <Pressable
+            accessibilityLabel={`Open notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}
+            onPress={() => router.push("/notifications")}
+            style={[
+              s.bell,
+              { backgroundColor: c.surface, borderColor: c.border },
+            ]}
+          >
+            <SymbolView
+              name={unreadCount ? "bell.fill" : "bell"}
+              size={16}
+              tintColor={unreadCount ? c.brand : c.text}
+            />
+            {unreadCount > 0 && (
+              <View style={[s.badge, { backgroundColor: c.brand }]}>
+                <Text style={s.badgeText}>
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </Text>
+              </View>
+            )}
+          </Pressable>
+          <Pressable
+            accessibilityLabel="Open profile"
+            onPress={() => router.push("/profile")}
+            style={[s.avatar, { backgroundColor: c.text }]}
+          >
+            <Text style={[s.avatarText, { color: c.background }]}>
+              {initials}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+      <LifeDrawer visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
+    </>
+  );
+}
+
+const s = StyleSheet.create({
+  header: {
+    height: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 22,
+  },
+  button: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  labelWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    maxWidth: "44%",
+  },
+  liveDot: { width: 6, height: 6, borderRadius: 6 },
+  label: { fontSize: 11, fontWeight: "700" },
+  avatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: { fontSize: 13, fontWeight: "900" },
+  rightActions: { flexDirection: "row", alignItems: "center", gap: 7 },
+  bell: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badge: {
+    position: "absolute",
+    minWidth: 15,
+    height: 15,
+    borderRadius: 8,
+    right: -4,
+    top: -4,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  badgeText: { color: "#FFFFFF", fontSize: 7, fontWeight: "900" },
+});

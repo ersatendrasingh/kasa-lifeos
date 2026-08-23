@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: lifeos-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: lifeos
+      POSTGRES_USER: lifeos
+      POSTGRES_PASSWORD: lifeos
+    ports:
+      # Keep KASA isolated from any locally installed PostgreSQL on 5432.
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lifeos -d lifeos"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - lifeos_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  lifeos_postgres_data:

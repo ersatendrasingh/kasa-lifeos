@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1290" height="2796" viewBox="0 0 1290 2796">
+  <defs>
+    <radialGradient id="bg" cx="0" cy="0" r="1" gradientTransform="translate(235 350) rotate(62) scale(1570 1180)" gradientUnits="userSpaceOnUse"><stop stop-color="#FFE0C8"/><stop offset=".55" stop-color="#FFF7F0"/><stop offset="1" stop-color="#FFFCF9"/></radialGradient>
+    <linearGradient id="a" x1="470" y1="1080" x2="820" y2="1500" gradientUnits="userSpaceOnUse"><stop stop-color="#FF8A3D"/><stop offset=".52" stop-color="#FF5A1F"/><stop offset="1" stop-color="#E93F16"/></linearGradient>
+    <filter id="s" x="-30%" y="-30%" width="160%" height="180%"><feDropShadow dx="0" dy="35" stdDeviation="42" flood-color="#C14417" flood-opacity=".22"/></filter>
+  </defs>
+  <rect width="1290" height="2796" fill="url(#bg)"/>
+  <circle cx="1090" cy="250" r="520" fill="none" stroke="#F9A56D" stroke-opacity=".24" stroke-width="2"/><circle cx="1090" cy="250" r="390" fill="none" stroke="#F9A56D" stroke-opacity=".18" stroke-width="2"/>
+  <rect x="455" y="1070" width="380" height="380" rx="108" fill="url(#a)" filter="url(#s)"/>
+  <path d="M568 1160V1360M580 1273L708 1158M630 1242L720 1360" fill="none" stroke="#fff" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M518 1300C546 1380 648 1421 728 1375C777 1347 798 1295 790 1246" fill="none" stroke="#fff" stroke-opacity=".3" stroke-width="11" stroke-linecap="round"/><circle cx="786" cy="1219" r="15" fill="#FFF2E9"/>
+  <text x="645" y="1570" fill="#291C16" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="96" font-weight="700" letter-spacing="-4">KASA</text>
+  <text x="645" y="1638" fill="#857168" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="600" letter-spacing="10">LIFE OS</text>
+  <text x="645" y="2520" fill="#9A8378" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="28" letter-spacing="2">YOUR LIFE, THOUGHTFULLY CONNECTED</text>
+</svg>
