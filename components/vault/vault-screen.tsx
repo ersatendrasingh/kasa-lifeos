@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Cropper, { type Area } from "react-easy-crop";
 import {
   ArrowDownUp,
   Camera,
@@ -97,6 +98,57 @@ function isUpcoming(document: VaultDocument) {
   if (!document.expiresAt) return false;
   const days = daysUntil(document.expiresAt);
   return days >= 0 && days <= 90;
+}
+
+async function cropImageFile(file: File, area: Area, rotation: number) {
+  const url = URL.createObjectURL(file);
+  const image = new window.Image();
+  image.src = url;
+  await new Promise<void>((resolve, reject) => {
+    image.onload = () => resolve();
+    image.onerror = () => reject(new Error("Could not prepare this image"));
+  });
+  const radians = (rotation * Math.PI) / 180;
+  const safeWidth = Math.ceil(
+    Math.abs(image.width * Math.cos(radians)) +
+      Math.abs(image.height * Math.sin(radians)),
+  );
+  const safeHeight = Math.ceil(
+    Math.abs(image.width * Math.sin(radians)) +
+      Math.abs(image.height * Math.cos(radians)),
+  );
+  const rotationCanvas = document.createElement("canvas");
+  rotationCanvas.width = safeWidth;
+  rotationCanvas.height = safeHeight;
+  const rotationContext = rotationCanvas.getContext("2d");
+  if (!rotationContext) throw new Error("Could not crop this image");
+  rotationContext.translate(safeWidth / 2, safeHeight / 2);
+  rotationContext.rotate(radians);
+  rotationContext.drawImage(image, -image.width / 2, -image.height / 2);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(area.width);
+  canvas.height = Math.round(area.height);
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Could not crop this image");
+  context.drawImage(
+    rotationCanvas,
+    area.x,
+    area.y,
+    area.width,
+    area.height,
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+  );
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, "image/jpeg", 0.92),
+  );
+  URL.revokeObjectURL(url);
+  if (!blob) throw new Error("Could not crop this image");
+  return new File([blob], `${file.name.replace(/\.[^.]+$/, "")}.jpg`, {
+    type: "image/jpeg",
+  });
 }
 
 function DocumentCard({
@@ -223,6 +275,172 @@ function FilterChip({
   );
 }
 
+function UploadReviewDialog({
+  file,
+  saving,
+  close,
+  onSave,
+}: {
+  file: File | null;
+  saving: boolean;
+  close: () => void;
+  onSave: (file: File) => void;
+}) {
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0);
+  const [area, setArea] = useState<Area | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const previewUrl = useMemo(
+    () => (file ? URL.createObjectURL(file) : null),
+    [file],
+  );
+
+  useEffect(
+    () => () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    },
+    [previewUrl],
+  );
+  if (!file || !previewUrl) return null;
+  const pending = file;
+  const isImage = pending.type.startsWith("image/");
+
+  async function save() {
+    setError(null);
+    try {
+      const ready =
+        isImage && area
+          ? await cropImageFile(pending, area, rotation)
+          : pending;
+      onSave(ready);
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Could not prepare this file",
+      );
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[10000] grid place-items-end bg-slate-950/65 p-3 backdrop-blur-sm sm:place-items-center sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Review document before saving"
+    >
+      <section className="surface-glass w-full max-w-2xl overflow-hidden rounded-[2rem] border shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b p-5">
+          <div>
+            <p className="text-lg font-semibold">Review before saving</p>
+            <p className="text-muted-foreground mt-1 text-sm">
+              {isImage
+                ? "Drag to position, zoom or rotate your document before it reaches the vault."
+                : "This PDF is ready to be securely saved."}
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Close review"
+            onClick={close}
+          >
+            <X />
+          </Button>
+        </div>
+        <div className="p-5">
+          {isImage && editing ? (
+            <div className="relative h-[min(54vh,420px)] overflow-hidden rounded-2xl bg-slate-950">
+              <Cropper
+                image={previewUrl}
+                crop={crop}
+                zoom={zoom}
+                rotation={rotation}
+                aspect={4 / 3}
+                showGrid
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onRotationChange={setRotation}
+                onCropComplete={(_, pixels) => setArea(pixels)}
+              />
+            </div>
+          ) : isImage ? (
+            <div className="bg-muted/30 flex h-64 items-center justify-center overflow-hidden rounded-2xl border">
+              {/* Local object URLs for unsaved files cannot use Next's image optimizer. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={previewUrl}
+                alt="Document ready to save"
+                className="size-full object-contain"
+              />
+            </div>
+          ) : (
+            <div className="bg-muted/30 flex h-48 flex-col items-center justify-center rounded-2xl border text-center">
+              <FileText className="text-danger size-10" />
+              <p className="mt-3 max-w-xs truncate text-sm font-semibold">
+                {pending.name}
+              </p>
+              <p className="text-muted-foreground mt-1 text-xs">
+                PDF · ready to save
+              </p>
+            </div>
+          )}
+          {editing ? (
+            <div className="mt-3 flex items-center justify-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setZoom((value) => Math.max(1, value - 0.2))}
+              >
+                − Zoom
+              </Button>
+              <span className="text-muted-foreground text-xs font-medium">
+                {Math.round(zoom * 100)}%
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setZoom((value) => Math.min(3, value + 0.2))}
+              >
+                + Zoom
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setRotation((value) => (value + 90) % 360)}
+              >
+                Rotate
+              </Button>
+            </div>
+          ) : null}
+          {error ? <p className="text-danger mt-3 text-sm">{error}</p> : null}
+          <div className="mt-5 flex flex-wrap gap-2">
+            {isImage ? (
+              <Button
+                variant="outline"
+                onClick={() => setEditing((value) => !value)}
+              >
+                <ImageIcon />
+                {editing ? "Done adjusting" : "Crop & adjust"}
+              </Button>
+            ) : null}
+            <Button variant="outline" onClick={close}>
+              Replace
+            </Button>
+            <Button
+              className="ml-auto"
+              disabled={saving}
+              onClick={() => void save()}
+            >
+              {saving ? <Spinner /> : <ShieldCheck />}Save to Life Vault
+            </Button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function VaultScreen({ initial }: VaultScreenProps) {
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<Filters>(emptyFilters);
@@ -233,6 +451,7 @@ export function VaultScreen({ initial }: VaultScreenProps) {
   const [expiringSoon, setExpiringSoon] = useState(initial.expiringSoon);
   const [total, setTotal] = useState(initial.total);
   const [uploading, setUploading] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [uploadNote, setUploadNote] = useState<string | null>(null);
   const [viewing, setViewing] = useState<VaultDocument | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -313,8 +532,7 @@ export function VaultScreen({ initial }: VaultScreenProps) {
     setShowAdvanced(false);
   }
 
-  async function upload(files: FileList | null) {
-    const file = files?.[0];
+  async function upload(file: File) {
     if (!file) return;
     setUploading(true);
     setUploadNote(null);
@@ -343,11 +561,23 @@ export function VaultScreen({ initial }: VaultScreenProps) {
         setExpiringSoon((items) => [data.document!, ...items].slice(0, 6));
       }
       void refresh();
+      return true;
     } catch {
       setUploadNote("Could not save this document. Please try again.");
+      return false;
     } finally {
       setUploading(false);
     }
+  }
+
+  function selectFile(files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+    if (file.type.startsWith("image/")) {
+      setPendingFile(file);
+      return;
+    }
+    void upload(file);
   }
 
   async function toggleFavorite(target: VaultDocument) {
@@ -616,7 +846,7 @@ export function VaultScreen({ initial }: VaultScreenProps) {
         accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
         className="hidden"
         onChange={(event) => {
-          void upload(event.target.files);
+          selectFile(event.target.files);
           event.currentTarget.value = "";
         }}
       />
@@ -627,7 +857,7 @@ export function VaultScreen({ initial }: VaultScreenProps) {
         capture="environment"
         className="hidden"
         onChange={(event) => {
-          void upload(event.target.files);
+          selectFile(event.target.files);
           event.currentTarget.value = "";
         }}
       />
@@ -637,7 +867,7 @@ export function VaultScreen({ initial }: VaultScreenProps) {
         accept="application/pdf"
         className="hidden"
         onChange={(event) => {
-          void upload(event.target.files);
+          selectFile(event.target.files);
           event.currentTarget.value = "";
         }}
       />
@@ -780,6 +1010,21 @@ export function VaultScreen({ initial }: VaultScreenProps) {
           onClose={() => setViewing(null)}
         />
       ) : null}
+      <UploadReviewDialog
+        key={
+          pendingFile
+            ? `${pendingFile.name}-${pendingFile.lastModified}`
+            : "closed"
+        }
+        file={pendingFile}
+        saving={uploading}
+        close={() => setPendingFile(null)}
+        onSave={(file) => {
+          void upload(file).then((saved) => {
+            if (saved) setPendingFile(null);
+          });
+        }}
+      />
     </main>
   );
 }

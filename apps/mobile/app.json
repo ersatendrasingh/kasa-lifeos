@@ -56,9 +56,7 @@
         {
           "color": "#FF6338",
           "defaultChannel": "kasa-reminders",
-          "sounds": [
-            "./assets/sounds/kasa-tone.wav"
-          ],
+          "sounds": ["./assets/sounds/kasa-tone.wav"],
           "enableBackgroundRemoteNotifications": false
         }
       ],

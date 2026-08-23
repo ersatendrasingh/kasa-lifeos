@@ -11,6 +11,7 @@ import { type ComponentProps, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   RefreshControl,
@@ -55,6 +56,8 @@ type PendingUpload = {
   name: string;
   mimeType: string;
   source: "scan" | "photo" | "file";
+  width?: number;
+  height?: number;
 };
 
 function daysUntil(value: string) {
@@ -88,7 +91,10 @@ export default function LifeVaultScreen() {
     document: VaultDocument;
     url: string | null;
   } | null>(null);
-  const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(null);
+  const [pendingUpload, setPendingUpload] = useState<PendingUpload | null>(
+    null,
+  );
+  const [cropOpen, setCropOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -184,10 +190,7 @@ export default function LifeVaultScreen() {
   async function normalizeImage(uri: string, rotate = 0) {
     return manipulateAsync(
       uri,
-      [
-        ...(rotate ? [{ rotate }] : []),
-        { resize: { width: 2200 } },
-      ],
+      [...(rotate ? [{ rotate }] : []), { resize: { width: 2200 } }],
       { compress: 0.9, format: SaveFormat.JPEG },
     );
   }
@@ -203,6 +206,8 @@ export default function LifeVaultScreen() {
       name: `${name.replace(/\.[^.]+$/, "")}.jpg`,
       mimeType: "image/jpeg",
       source,
+      width: image.width,
+      height: image.height,
     });
   }
 
@@ -242,7 +247,11 @@ export default function LifeVaultScreen() {
       });
       const asset = result.assets?.[0];
       if (result.canceled || !asset) return;
-      await prepareImage(asset.uri, asset.fileName ?? "kasa-photo.jpg", "photo");
+      await prepareImage(
+        asset.uri,
+        asset.fileName ?? "kasa-photo.jpg",
+        "photo",
+      );
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Photos could not open",
@@ -293,11 +302,51 @@ export default function LifeVaultScreen() {
     try {
       const image = await normalizeImage(pendingUpload.uri, 90);
       setPendingUpload((current) =>
-        current ? { ...current, uri: image.uri } : current,
+        current
+          ? {
+              ...current,
+              uri: image.uri,
+              width: image.width,
+              height: image.height,
+            }
+          : current,
       );
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not rotate image");
+      setMessage(
+        error instanceof Error ? error.message : "Could not rotate image",
+      );
+    }
+  }
+
+  async function cropPendingUpload(crop: {
+    originX: number;
+    originY: number;
+    width: number;
+    height: number;
+  }) {
+    if (!pendingUpload) return;
+    try {
+      const image = await manipulateAsync(pendingUpload.uri, [{ crop }], {
+        compress: 0.9,
+        format: SaveFormat.JPEG,
+      });
+      setPendingUpload((current) =>
+        current
+          ? {
+              ...current,
+              uri: image.uri,
+              width: image.width,
+              height: image.height,
+            }
+          : current,
+      );
+      setCropOpen(false);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Could not crop image",
+      );
     }
   }
 
@@ -308,8 +357,12 @@ export default function LifeVaultScreen() {
       if (!(await Sharing.isAvailableAsync())) {
         throw new Error("Sharing is not available on this device");
       }
-      const extension = preview.document.mimeType === "application/pdf" ? "pdf" : "jpg";
-      const destination = new File(Paths.cache, `kasa-${preview.document.id}.${extension}`);
+      const extension =
+        preview.document.mimeType === "application/pdf" ? "pdf" : "jpg";
+      const destination = new File(
+        Paths.cache,
+        `kasa-${preview.document.id}.${extension}`,
+      );
       const file = await File.downloadFileAsync(preview.url, destination, {
         idempotent: true,
       });
@@ -318,7 +371,9 @@ export default function LifeVaultScreen() {
         dialogTitle: `Share ${preview.document.title}`,
       });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not share document");
+      setMessage(
+        error instanceof Error ? error.message : "Could not share document",
+      );
     } finally {
       setSharing(false);
     }
@@ -647,6 +702,7 @@ export default function LifeVaultScreen() {
         uploading={uploading}
         close={() => setPendingUpload(null)}
         onRotate={() => void rotatePendingUpload()}
+        onCrop={() => setCropOpen(true)}
         onReplace={() => {
           setPendingUpload(null);
           void (pendingUpload?.source === "scan"
@@ -663,6 +719,12 @@ export default function LifeVaultScreen() {
         }}
         colors={c}
       />
+      <CropEditor
+        pending={cropOpen ? pendingUpload : null}
+        close={() => setCropOpen(false)}
+        onApply={(crop) => void cropPendingUpload(crop)}
+        colors={c}
+      />
       <PreviewSheet
         preview={preview}
         sharing={sharing}
@@ -671,7 +733,8 @@ export default function LifeVaultScreen() {
         onOpen={() => {
           if (!preview?.url) return;
           void WebBrowser.openBrowserAsync(preview.url, {
-            presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+            presentationStyle:
+              WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
           });
         }}
         colors={c}
@@ -1079,6 +1142,7 @@ function UploadReviewSheet({
   uploading,
   close,
   onRotate,
+  onCrop,
   onReplace,
   onSave,
   colors,
@@ -1087,6 +1151,7 @@ function UploadReviewSheet({
   uploading: boolean;
   close: () => void;
   onRotate: () => void;
+  onCrop: () => void;
   onReplace: () => void;
   onSave: () => void;
   colors: ReturnType<typeof useTheme>;
@@ -1111,31 +1176,97 @@ function UploadReviewSheet({
               </Text>
             </View>
             <Pressable onPress={close} hitSlop={8} style={s.reviewClose}>
-              <SymbolView name="xmark" size={16} tintColor={colors.textSecondary} />
+              <SymbolView
+                name="xmark"
+                size={16}
+                tintColor={colors.textSecondary}
+              />
             </Pressable>
           </View>
-          <View style={[s.reviewPreview, { backgroundColor: colors.background, borderColor: colors.border }]}>
+          <View
+            style={[
+              s.reviewPreview,
+              {
+                backgroundColor: colors.background,
+                borderColor: colors.border,
+              },
+            ]}
+          >
             {image ? (
-              <Image source={pending.uri} contentFit="contain" style={s.reviewImage} alt="Document ready to save" />
+              <Image
+                source={pending.uri}
+                contentFit="contain"
+                style={s.reviewImage}
+                alt="Document ready to save"
+              />
             ) : (
-              <PdfCard name={pending.name} detail="PDF · ready to save" colors={colors} />
+              <PdfCard
+                name={pending.name}
+                detail="PDF · ready to save"
+                colors={colors}
+              />
             )}
           </View>
           <View style={s.reviewTools}>
             {image ? (
-              <Pressable onPress={onRotate} style={[s.reviewTool, { borderColor: colors.border }]}>
-                <SymbolView name="rotate.right" size={16} tintColor={colors.text} />
-                <Text style={[s.reviewToolText, { color: colors.text }]}>Rotate</Text>
-              </Pressable>
+              <>
+                <Pressable
+                  onPress={onCrop}
+                  style={[s.reviewTool, { borderColor: colors.border }]}
+                >
+                  <SymbolView name="crop" size={16} tintColor={colors.text} />
+                  <Text style={[s.reviewToolText, { color: colors.text }]}>
+                    Crop
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={onRotate}
+                  style={[s.reviewTool, { borderColor: colors.border }]}
+                >
+                  <SymbolView
+                    name="rotate.right"
+                    size={16}
+                    tintColor={colors.text}
+                  />
+                  <Text style={[s.reviewToolText, { color: colors.text }]}>
+                    Rotate
+                  </Text>
+                </Pressable>
+              </>
             ) : null}
-            <Pressable onPress={onReplace} style={[s.reviewTool, { borderColor: colors.border }]}>
-              <SymbolView name={isScan ? "camera.rotate" : "photo.on.rectangle"} size={16} tintColor={colors.text} />
-              <Text style={[s.reviewToolText, { color: colors.text }]}>{isScan ? "Retake" : "Replace"}</Text>
+            <Pressable
+              onPress={onReplace}
+              style={[s.reviewTool, { borderColor: colors.border }]}
+            >
+              <SymbolView
+                name={isScan ? "camera.rotate" : "photo.on.rectangle"}
+                size={16}
+                tintColor={colors.text}
+              />
+              <Text style={[s.reviewToolText, { color: colors.text }]}>
+                {isScan ? "Retake" : "Replace"}
+              </Text>
             </Pressable>
           </View>
-          <Pressable disabled={uploading} onPress={onSave} style={({ pressed }) => [s.saveReview, { backgroundColor: colors.brand, opacity: pressed || uploading ? 0.72 : 1 }]}>
-            {uploading ? <KasaSpinner size={18} /> : <SymbolView name="lock.fill" size={14} tintColor="#FFFFFF" />}
-            <Text style={s.saveReviewText}>{uploading ? "Saving securely…" : "Save to Life Vault"}</Text>
+          <Pressable
+            disabled={uploading}
+            onPress={onSave}
+            style={({ pressed }) => [
+              s.saveReview,
+              {
+                backgroundColor: colors.brand,
+                opacity: pressed || uploading ? 0.72 : 1,
+              },
+            ]}
+          >
+            {uploading ? (
+              <KasaSpinner size={18} />
+            ) : (
+              <SymbolView name="lock.fill" size={14} tintColor="#FFFFFF" />
+            )}
+            <Text style={s.saveReviewText}>
+              {uploading ? "Saving securely…" : "Save to Life Vault"}
+            </Text>
           </Pressable>
         </View>
       </View>
@@ -1143,11 +1274,227 @@ function UploadReviewSheet({
   );
 }
 
-function PdfCard({ name, detail, colors }: { name: string; detail: string; colors: ReturnType<typeof useTheme> }) {
-  return <View style={s.pdfPreview}><SymbolView name="doc.richtext.fill" size={40} tintColor="#D44857" /><Text style={[s.pdfName, { color: colors.text }]} numberOfLines={2}>{name}</Text><Text style={[s.pdfMeta, { color: colors.textSecondary }]}>{detail}</Text></View>;
+function CropEditor({
+  pending,
+  close,
+  onApply,
+  colors,
+}: {
+  pending: PendingUpload | null;
+  close: () => void;
+  onApply: (crop: {
+    originX: number;
+    originY: number;
+    width: number;
+    height: number;
+  }) => void;
+  colors: ReturnType<typeof useTheme>;
+}) {
+  const frameWidth = 312;
+  const frameHeight = 238;
+  const sourceWidth = pending?.width ?? 1200;
+  const sourceHeight = pending?.height ?? 1600;
+  const baseScale = Math.max(
+    frameWidth / sourceWidth,
+    frameHeight / sourceHeight,
+  );
+  const [zoom, setZoom] = useState(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: (_, gesture) =>
+          Math.abs(gesture.dx) > 1 || Math.abs(gesture.dy) > 1,
+        onPanResponderMove: (_, gesture) => {
+          const imageWidth = sourceWidth * baseScale * zoom;
+          const imageHeight = sourceHeight * baseScale * zoom;
+          const next = {
+            x: Math.max(
+              -(imageWidth - frameWidth) / 2,
+              Math.min((imageWidth - frameWidth) / 2, position.x + gesture.dx),
+            ),
+            y: Math.max(
+              -(imageHeight - frameHeight) / 2,
+              Math.min(
+                (imageHeight - frameHeight) / 2,
+                position.y + gesture.dy,
+              ),
+            ),
+          };
+          setPosition(next);
+        },
+      }),
+    [baseScale, sourceHeight, sourceWidth, zoom, position],
+  );
+
+  if (!pending || !pending.mimeType.startsWith("image/")) return null;
+  const imageWidth = sourceWidth * baseScale * zoom;
+  const imageHeight = sourceHeight * baseScale * zoom;
+  const adjustZoom = (change: number) => {
+    setZoom((current) => {
+      const nextZoom = Math.max(
+        1,
+        Math.min(3, Number((current + change).toFixed(2))),
+      );
+      const nextImageWidth = sourceWidth * baseScale * nextZoom;
+      const nextImageHeight = sourceHeight * baseScale * nextZoom;
+      const nextPosition = {
+        x: Math.max(
+          -(nextImageWidth - frameWidth) / 2,
+          Math.min((nextImageWidth - frameWidth) / 2, position.x),
+        ),
+        y: Math.max(
+          -(nextImageHeight - frameHeight) / 2,
+          Math.min((nextImageHeight - frameHeight) / 2, position.y),
+        ),
+      };
+      setPosition(nextPosition);
+      return nextZoom;
+    });
+  };
+  const apply = () => {
+    const displayScale = baseScale * zoom;
+    const cropWidth = Math.min(
+      sourceWidth,
+      Math.round(frameWidth / displayScale),
+    );
+    const cropHeight = Math.min(
+      sourceHeight,
+      Math.round(frameHeight / displayScale),
+    );
+    onApply({
+      originX: Math.max(
+        0,
+        Math.min(
+          sourceWidth - cropWidth,
+          Math.round((sourceWidth - cropWidth) / 2 - position.x / displayScale),
+        ),
+      ),
+      originY: Math.max(
+        0,
+        Math.min(
+          sourceHeight - cropHeight,
+          Math.round(
+            (sourceHeight - cropHeight) / 2 - position.y / displayScale,
+          ),
+        ),
+      ),
+      width: cropWidth,
+      height: cropHeight,
+    });
+  };
+
+  return (
+    <Modal transparent visible animationType="slide" onRequestClose={close}>
+      <View style={s.cropBackdrop}>
+        <View style={[s.cropSheet, { backgroundColor: colors.surface }]}>
+          <View style={[s.sheetHandle, { backgroundColor: colors.border }]} />
+          <View style={s.reviewHead}>
+            <View style={s.previewTitleWrap}>
+              <Text style={[s.reviewTitle, { color: colors.text }]}>
+                Adjust crop
+              </Text>
+              <Text style={[s.reviewSub, { color: colors.textSecondary }]}>
+                Drag the document to position it. Use + and − to zoom.
+              </Text>
+            </View>
+            <Pressable onPress={close} style={s.reviewClose}>
+              <SymbolView
+                name="xmark"
+                size={16}
+                tintColor={colors.textSecondary}
+              />
+            </Pressable>
+          </View>
+          <View style={s.cropStage} {...panResponder.panHandlers}>
+            <Image
+              source={pending.uri}
+              contentFit="fill"
+              style={[
+                s.cropImage,
+                {
+                  width: imageWidth,
+                  height: imageHeight,
+                  transform: [
+                    { translateX: position.x },
+                    { translateY: position.y },
+                  ],
+                },
+              ]}
+              alt="Crop document"
+            />
+            <View pointerEvents="none" style={s.cropFrame}>
+              <View style={s.cropRuleVertical} />
+              <View style={s.cropRuleHorizontal} />
+            </View>
+          </View>
+          <View style={s.cropControls}>
+            <Pressable
+              onPress={() => adjustZoom(-0.2)}
+              disabled={zoom <= 1}
+              style={[
+                s.zoomButton,
+                { borderColor: colors.border, opacity: zoom <= 1 ? 0.45 : 1 },
+              ]}
+            >
+              <SymbolView name="minus" size={16} tintColor={colors.text} />
+            </Pressable>
+            <Text style={[s.zoomText, { color: colors.textSecondary }]}>
+              Zoom {Math.round(zoom * 100)}%
+            </Text>
+            <Pressable
+              onPress={() => adjustZoom(0.2)}
+              disabled={zoom >= 3}
+              style={[
+                s.zoomButton,
+                { borderColor: colors.border, opacity: zoom >= 3 ? 0.45 : 1 },
+              ]}
+            >
+              <SymbolView name="plus" size={16} tintColor={colors.text} />
+            </Pressable>
+          </View>
+          <Pressable
+            onPress={apply}
+            style={[s.saveReview, { backgroundColor: colors.brand }]}
+          >
+            <SymbolView name="checkmark" size={15} tintColor="#FFFFFF" />
+            <Text style={s.saveReviewText}>Apply crop</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
 }
 
-function PreviewSheet({ preview, sharing, close, onShare, onOpen, colors }: {
+function PdfCard({
+  name,
+  detail,
+  colors,
+}: {
+  name: string;
+  detail: string;
+  colors: ReturnType<typeof useTheme>;
+}) {
+  return (
+    <View style={s.pdfPreview}>
+      <SymbolView name="doc.richtext.fill" size={40} tintColor="#D44857" />
+      <Text style={[s.pdfName, { color: colors.text }]} numberOfLines={2}>
+        {name}
+      </Text>
+      <Text style={[s.pdfMeta, { color: colors.textSecondary }]}>{detail}</Text>
+    </View>
+  );
+}
+
+function PreviewSheet({
+  preview,
+  sharing,
+  close,
+  onShare,
+  onOpen,
+  colors,
+}: {
   preview: { document: VaultDocument; url: string | null } | null;
   sharing: boolean;
   close: () => void;
@@ -1163,17 +1510,120 @@ function PreviewSheet({ preview, sharing, close, onShare, onOpen, colors }: {
         <View style={[s.previewSheet, { backgroundColor: colors.surface }]}>
           <View style={[s.sheetHandle, { backgroundColor: colors.border }]} />
           <View style={s.reviewHead}>
-            <View style={s.previewTitleWrap}><Text numberOfLines={1} style={[s.previewTitle, { color: colors.text }]}>{preview.document.title}</Text><Text style={[s.previewMeta, { color: colors.textSecondary }]}>{isPdf ? "PDF document" : "Secure image preview"}</Text></View>
-            <Pressable onPress={close} accessibilityLabel="Close preview" style={s.reviewClose}><SymbolView name="xmark" size={16} tintColor={colors.textSecondary} /></Pressable>
+            <View style={s.previewTitleWrap}>
+              <Text
+                numberOfLines={1}
+                style={[s.previewTitle, { color: colors.text }]}
+              >
+                {preview.document.title}
+              </Text>
+              <Text style={[s.previewMeta, { color: colors.textSecondary }]}>
+                {isPdf ? "PDF document" : "Secure image preview"}
+              </Text>
+            </View>
+            <Pressable
+              onPress={close}
+              accessibilityLabel="Close preview"
+              style={s.reviewClose}
+            >
+              <SymbolView
+                name="xmark"
+                size={16}
+                tintColor={colors.textSecondary}
+              />
+            </Pressable>
           </View>
-          <View style={[s.compactPreview, { backgroundColor: colors.background, borderColor: colors.border }]}>
-            {preview.url ? isPdf ? <PdfCard name={preview.document.title} detail="Tap open to read this PDF" colors={colors} /> : <Image source={preview.url} contentFit="contain" transition={160} style={s.previewImage} alt={preview.document.title} accessibilityLabel={preview.document.title} /> : <View style={s.previewLoading}><KasaSpinner size={30} /><Text style={[s.previewLoadingText, { color: colors.textSecondary }]}>Opening secure preview…</Text></View>}
+          <View
+            style={[
+              s.compactPreview,
+              {
+                backgroundColor: colors.background,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            {preview.url ? (
+              isPdf ? (
+                <PdfCard
+                  name={preview.document.title}
+                  detail="Tap open to read this PDF"
+                  colors={colors}
+                />
+              ) : (
+                <Image
+                  source={preview.url}
+                  contentFit="contain"
+                  transition={160}
+                  style={s.previewImage}
+                  alt={preview.document.title}
+                  accessibilityLabel={preview.document.title}
+                />
+              )
+            ) : (
+              <View style={s.previewLoading}>
+                <KasaSpinner size={30} />
+                <Text
+                  style={[
+                    s.previewLoadingText,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  Opening secure preview…
+                </Text>
+              </View>
+            )}
           </View>
           <View style={s.previewActions}>
-            <Pressable disabled={!preview.url || sharing} onPress={onShare} style={[s.previewActionSecondary, { borderColor: colors.border, opacity: !preview.url || sharing ? 0.55 : 1 }]}><SymbolView name="square.and.arrow.up" size={16} tintColor={colors.text} /><Text style={[s.previewActionSecondaryText, { color: colors.text }]}>{sharing ? "Preparing…" : "Share"}</Text></Pressable>
-            <Pressable disabled={!preview.url} onPress={onOpen} style={[s.previewActionPrimary, { backgroundColor: colors.brand, opacity: !preview.url ? 0.55 : 1 }]}><SymbolView name={isPdf ? "arrow.up.right.square" : "arrow.up.left.and.arrow.down.right"} size={15} tintColor="#FFFFFF" /><Text style={s.previewActionPrimaryText}>{isPdf ? "Open PDF" : "View larger"}</Text></Pressable>
+            <Pressable
+              disabled={!preview.url || sharing}
+              onPress={onShare}
+              style={[
+                s.previewActionSecondary,
+                {
+                  borderColor: colors.border,
+                  opacity: !preview.url || sharing ? 0.55 : 1,
+                },
+              ]}
+            >
+              <SymbolView
+                name="square.and.arrow.up"
+                size={16}
+                tintColor={colors.text}
+              />
+              <Text
+                style={[s.previewActionSecondaryText, { color: colors.text }]}
+              >
+                {sharing ? "Preparing…" : "Share"}
+              </Text>
+            </Pressable>
+            <Pressable
+              disabled={!preview.url}
+              onPress={onOpen}
+              style={[
+                s.previewActionPrimary,
+                {
+                  backgroundColor: colors.brand,
+                  opacity: !preview.url ? 0.55 : 1,
+                },
+              ]}
+            >
+              <SymbolView
+                name={
+                  isPdf
+                    ? "arrow.up.right.square"
+                    : "arrow.up.left.and.arrow.down.right"
+                }
+                size={15}
+                tintColor="#FFFFFF"
+              />
+              <Text style={s.previewActionPrimaryText}>
+                {isPdf ? "Open PDF" : "View larger"}
+              </Text>
+            </Pressable>
           </View>
-          <Text style={[s.previewHint, { color: colors.textSecondary }]}>Private by default · share only when you choose</Text>
+          <Text style={[s.previewHint, { color: colors.textSecondary }]}>
+            Private by default · share only when you choose
+          </Text>
         </View>
       </View>
     </Modal>
@@ -1466,19 +1916,52 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: Platform.select({ ios: 34, android: 24, default: 24 }),
   },
-  reviewHead: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginTop: 17 },
+  reviewHead: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    marginTop: 17,
+  },
   reviewTitle: { fontSize: 19, fontWeight: "900", letterSpacing: -0.45 },
   reviewSub: { fontSize: 11, lineHeight: 16, marginTop: 4 },
-  reviewClose: { width: 34, height: 34, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  reviewClose: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   previewTitleWrap: { flex: 1, minWidth: 0 },
   previewTitle: { fontSize: 15, fontWeight: "900" },
   previewMeta: { fontSize: 10, marginTop: 3 },
-  reviewPreview: { height: 230, borderRadius: 20, borderWidth: 1, overflow: "hidden", marginTop: 16 },
-  compactPreview: { height: 245, borderRadius: 20, borderWidth: 1, overflow: "hidden", marginTop: 16 },
+  reviewPreview: {
+    height: 230,
+    borderRadius: 20,
+    borderWidth: 1,
+    overflow: "hidden",
+    marginTop: 16,
+  },
+  compactPreview: {
+    height: 245,
+    borderRadius: 20,
+    borderWidth: 1,
+    overflow: "hidden",
+    marginTop: 16,
+  },
   reviewImage: { width: "100%", height: "100%" },
   previewImage: { width: "100%", height: "100%" },
-  pdfPreview: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 30 },
-  pdfName: { fontSize: 13, fontWeight: "900", textAlign: "center", marginTop: 12 },
+  pdfPreview: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 30,
+  },
+  pdfName: {
+    fontSize: 13,
+    fontWeight: "900",
+    textAlign: "center",
+    marginTop: 12,
+  },
   pdfMeta: { fontSize: 10, marginTop: 5 },
   previewLoading: {
     flex: 1,
@@ -1491,14 +1974,120 @@ const s = StyleSheet.create({
     fontWeight: "700",
   },
   reviewTools: { flexDirection: "row", gap: 8, marginTop: 11 },
-  reviewTool: { flex: 1, height: 43, borderRadius: 14, borderWidth: 1, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6 },
+  reviewTool: {
+    flex: 1,
+    height: 43,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
   reviewToolText: { fontSize: 11, fontWeight: "900" },
-  saveReview: { height: 51, borderRadius: 17, marginTop: 11, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 },
+  saveReview: {
+    height: 51,
+    borderRadius: 17,
+    marginTop: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
   saveReviewText: { color: "#FFFFFF", fontSize: 13, fontWeight: "900" },
   previewActions: { flexDirection: "row", gap: 8, marginTop: 12 },
-  previewActionSecondary: { flex: 1, height: 47, borderRadius: 16, borderWidth: 1, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6 },
+  previewActionSecondary: {
+    flex: 1,
+    height: 47,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
   previewActionSecondaryText: { fontSize: 12, fontWeight: "900" },
-  previewActionPrimary: { flex: 1, height: 47, borderRadius: 16, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6 },
-  previewActionPrimaryText: { color: "#FFFFFF", fontSize: 12, fontWeight: "900" },
+  previewActionPrimary: {
+    flex: 1,
+    height: 47,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  previewActionPrimaryText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "900",
+  },
   previewHint: { textAlign: "center", fontSize: 10, marginTop: 11 },
+  cropBackdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(17, 8, 5, 0.72)",
+  },
+  cropSheet: {
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingHorizontal: 20,
+    paddingBottom: Platform.select({ ios: 34, android: 24, default: 24 }),
+  },
+  cropStage: {
+    width: 312,
+    height: 238,
+    alignSelf: "center",
+    overflow: "hidden",
+    borderRadius: 18,
+    marginTop: 17,
+    backgroundColor: "#11100F",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cropImage: { position: "absolute" },
+  cropFrame: {
+    position: "absolute",
+    inset: 0,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+    borderRadius: 18,
+  },
+  cropRuleVertical: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: "50%",
+    width: 1,
+    backgroundColor: "rgba(255,255,255,0.42)",
+  },
+  cropRuleHorizontal: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: "50%",
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.42)",
+  },
+  cropControls: {
+    height: 47,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 18,
+    marginTop: 12,
+  },
+  zoomButton: {
+    width: 43,
+    height: 43,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  zoomText: {
+    minWidth: 87,
+    textAlign: "center",
+    fontSize: 11,
+    fontWeight: "900",
+  },
 });
