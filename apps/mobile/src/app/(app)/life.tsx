@@ -1,7 +1,9 @@
 import { router } from "expo-router";
 import { SymbolView } from "expo-symbols";
+import { useEffect, useMemo, useState } from "react";
 import {
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,45 +14,55 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/app-header";
 import { CosmicBackground } from "@/components/cosmic-background";
+import { KasaSpinner } from "@/components/kasa-spinner";
 import { useTheme } from "@/hooks/use-theme";
-
-const areas = [
-  ["calendar", "Calendar", "Plans & reminders", "#FF6338", "/calendar"],
-  [
-    "folder.fill",
-    "Life Vault",
-    "Your private documents",
-    "#5B7CFA",
-    "/life-vault",
-  ],
-  ["heart.fill", "Health", "3 goals active", "#FF5C71"],
-  ["chart.line.uptrend.xyaxis", "Money", "On track", "#20A06A"],
-  ["person.2.fill", "People", "2 follow-ups", "#8B5CF6"],
-  [
-    "house.fill",
-    "Responsibilities",
-    "Bills, renewals and subscriptions",
-    "#E58A00",
-    "/responsibilities",
-  ],
-  ["car.fill", "Vehicle", "Service in 12d", "#1484C8"],
-  ["book.fill", "Learning", "32 min today", "#7C55D9"],
-  ["target", "Goals", "4 in progress", "#E8527A"],
-] as const;
-
-const attention = [
-  ["bolt.fill", "Electricity bill", "Due today", "Pay now"],
-  ["doc.text.fill", "Insurance renewal", "6 days left", "Review"],
-  [
-    "person.crop.circle.badge.clock",
-    "Follow up with HR",
-    "Waiting 2 days",
-    "Remind",
-  ],
-] as const;
+import { loadLifeOverview, type LifeOverview } from "@/lib/life-overview";
 
 export default function LifeScreen() {
   const c = useTheme();
+  const [overview, setOverview] = useState<LifeOverview | null>(null);
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const visibleAreas = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return overview?.areas ?? [];
+    return (overview?.areas ?? []).filter((area) =>
+      `${area.label} ${area.value} ${area.detail}`
+        .toLowerCase()
+        .includes(normalized),
+    );
+  }, [overview, query]);
+
+  async function load(background = false) {
+    if (background) setRefreshing(true);
+    try {
+      setOverview(await loadLifeOverview());
+    } catch {
+      setOverview(null);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }
+
+  useEffect(() => {
+    let active = true;
+    void loadLifeOverview()
+      .then((data) => {
+        if (active) setOverview(data);
+      })
+      .catch(() => {
+        if (active) setOverview(null);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <View style={[s.screen, { backgroundColor: c.background }]}>
       <CosmicBackground />
@@ -58,6 +70,13 @@ export default function LifeScreen() {
         <ScrollView
           contentContainerStyle={s.content}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              tintColor={c.brand}
+              onRefresh={() => void load(true)}
+            />
+          }
         >
           <AppHeader label="Your LifeOS" />
           <Text style={[s.eyebrow, { color: c.brand }]}>
@@ -82,7 +101,9 @@ export default function LifeScreen() {
               tintColor={c.textSecondary}
             />
             <TextInput
-              placeholder="Search documents, people, bills…"
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search your life areas…"
               placeholderTextColor={c.textSecondary}
               style={[s.searchInput, { color: c.text }]}
             />
@@ -94,13 +115,21 @@ export default function LifeScreen() {
           <View style={[s.overview, { backgroundColor: c.brand }]}>
             <View style={s.overviewCopy}>
               <Text style={s.overviewLabel}>LIFE BALANCE</Text>
-              <Text style={s.overviewTitle}>You&apos;re moving well.</Text>
+              <Text style={s.overviewTitle}>
+                {overview?.score === null || !overview
+                  ? "Your real picture starts here."
+                  : overview.score >= 70
+                    ? "You're moving well."
+                    : "A few areas need attention."}
+              </Text>
               <Text style={s.overviewText}>
-                5 of 7 life areas are on track this week.
+                {overview
+                  ? `${overview.onTrackAreas} of ${overview.trackedAreas} tracked areas are on track.`
+                  : "Loading your connected areas…"}
               </Text>
             </View>
             <View style={s.ring}>
-              <Text style={s.ringValue}>78</Text>
+              <Text style={s.ringValue}>{overview?.score ?? "—"}</Text>
               <Text style={s.ringUnit}>SCORE</Text>
             </View>
           </View>
@@ -115,7 +144,9 @@ export default function LifeScreen() {
               </Text>
             </View>
             <View style={[s.alertCount, { backgroundColor: c.brandSoft }]}>
-              <Text style={[s.alertCountText, { color: c.brand }]}>3</Text>
+              <Text style={[s.alertCountText, { color: c.brand }]}>
+                {overview?.attention.length ?? 0}
+              </Text>
             </View>
           </View>
           <View
@@ -124,9 +155,10 @@ export default function LifeScreen() {
               { backgroundColor: c.surface, borderColor: c.border },
             ]}
           >
-            {attention.map(([icon, title, detail, action], index) => (
+            {(overview?.attention ?? []).map((item, index) => (
               <Pressable
-                key={title}
+                key={item.id}
+                onPress={() => router.push(item.href)}
                 style={[
                   s.attentionRow,
                   index > 0 && { borderTopColor: c.border, borderTopWidth: 1 },
@@ -135,19 +167,42 @@ export default function LifeScreen() {
                 <View
                   style={[s.attentionIcon, { backgroundColor: c.brandSoft }]}
                 >
-                  <SymbolView name={icon} size={15} tintColor={c.brand} />
+                  <SymbolView
+                    name={item.icon as never}
+                    size={15}
+                    tintColor={c.brand}
+                  />
                 </View>
                 <View style={s.attentionCopy}>
                   <Text style={[s.attentionTitle, { color: c.text }]}>
-                    {title}
+                    {item.title}
                   </Text>
                   <Text style={[s.attentionDetail, { color: c.textSecondary }]}>
-                    {detail}
+                    {item.detail}
                   </Text>
                 </View>
-                <Text style={[s.action, { color: c.brand }]}>{action}</Text>
+                <Text style={[s.action, { color: c.brand }]}>
+                  {item.action}
+                </Text>
               </Pressable>
             ))}
+            {!loading && !overview?.attention.length && (
+              <View style={s.emptyAttention}>
+                <View
+                  style={[s.attentionIcon, { backgroundColor: c.brandSoft }]}
+                >
+                  <SymbolView name="checkmark" size={15} tintColor={c.brand} />
+                </View>
+                <View style={s.attentionCopy}>
+                  <Text style={[s.attentionTitle, { color: c.text }]}>
+                    Nothing needs attention
+                  </Text>
+                  <Text style={[s.attentionDetail, { color: c.textSecondary }]}>
+                    New real signals will appear here automatically.
+                  </Text>
+                </View>
+              </View>
+            )}
           </View>
 
           <View style={s.sectionHead}>
@@ -169,60 +224,54 @@ export default function LifeScreen() {
               />
             </Pressable>
           </View>
-          <View style={s.grid}>
-            {areas.map(([icon, label, detail, color, href]) => (
-              <Pressable
-                key={label}
-                onPress={() => href && router.push(href)}
-                style={({ pressed }) => [
-                  s.areaCard,
-                  {
-                    backgroundColor: c.surface,
-                    borderColor: c.border,
-                    opacity: pressed ? 0.72 : 1,
-                  },
-                ]}
-              >
-                <View style={[s.areaIcon, { backgroundColor: `${color}18` }]}>
-                  <SymbolView name={icon} size={19} tintColor={color} />
-                </View>
-                <Text style={[s.areaTitle, { color: c.text }]}>{label}</Text>
-                <Text style={[s.areaDetail, { color: c.textSecondary }]}>
-                  {detail}
-                </Text>
-                <View
-                  style={[
-                    s.areaArrow,
-                    { backgroundColor: c.backgroundElement },
+          {loading && !overview ? (
+            <View style={s.loading}>
+              <KasaSpinner size={26} />
+            </View>
+          ) : (
+            <View style={s.grid}>
+              {visibleAreas.map((area) => (
+                <Pressable
+                  key={area.id}
+                  onPress={() => router.push(area.href)}
+                  style={({ pressed }) => [
+                    s.areaCard,
+                    {
+                      backgroundColor: c.surface,
+                      borderColor: c.border,
+                      opacity: pressed ? 0.72 : 1,
+                    },
                   ]}
                 >
-                  <SymbolView
-                    name="arrow.up.right"
-                    size={10}
-                    tintColor={c.textSecondary}
-                  />
-                </View>
-              </Pressable>
-            ))}
-          </View>
-          <Pressable style={[s.addArea, { borderColor: c.border }]}>
-            <View style={[s.addIcon, { backgroundColor: c.brandSoft }]}>
-              <SymbolView name="plus" size={15} tintColor={c.brand} />
+                  <View style={[s.areaIcon, { backgroundColor: c.brandSoft }]}>
+                    <SymbolView
+                      name={area.icon as never}
+                      size={19}
+                      tintColor={c.brand}
+                    />
+                  </View>
+                  <Text style={[s.areaTitle, { color: c.text }]}>
+                    {area.label}
+                  </Text>
+                  <Text style={[s.areaDetail, { color: c.textSecondary }]}>
+                    {area.detail}
+                  </Text>
+                  <View
+                    style={[
+                      s.areaArrow,
+                      { backgroundColor: c.backgroundElement },
+                    ]}
+                  >
+                    <SymbolView
+                      name="arrow.up.right"
+                      size={10}
+                      tintColor={c.textSecondary}
+                    />
+                  </View>
+                </Pressable>
+              ))}
             </View>
-            <View style={s.addCopy}>
-              <Text style={[s.addTitle, { color: c.text }]}>
-                Personalize your LifeOS
-              </Text>
-              <Text style={[s.addText, { color: c.textSecondary }]}>
-                Choose what appears here and how it is organized.
-              </Text>
-            </View>
-            <SymbolView
-              name="chevron.right"
-              size={11}
-              tintColor={c.textSecondary}
-            />
-          </Pressable>
+          )}
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -328,6 +377,11 @@ const s = StyleSheet.create({
   alertCountText: { fontSize: 11, fontWeight: "900" },
   attentionCard: { borderWidth: 1, borderRadius: 24, paddingHorizontal: 13 },
   attentionRow: { minHeight: 66, flexDirection: "row", alignItems: "center" },
+  emptyAttention: {
+    minHeight: 72,
+    flexDirection: "row",
+    alignItems: "center",
+  },
   attentionIcon: {
     width: 34,
     height: 34,
@@ -347,6 +401,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  loading: { minHeight: 180, alignItems: "center", justifyContent: "center" },
   areaCard: {
     width: "48.5%",
     minHeight: 142,

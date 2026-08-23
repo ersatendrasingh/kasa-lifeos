@@ -2,8 +2,11 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ModuleScreen } from "@/components/app/module-screen";
+import { HealthHubScreen } from "@/components/app/health-hub-screen";
 import { ResponsibilitiesScreen } from "@/components/app/responsibilities-screen";
 import { getProductModule, productModules } from "@/lib/app-navigation";
+import { getServerSession } from "@/lib/auth-session";
+import { getHealthEntries } from "@/lib/health/service";
 
 type ModulePageProps = { params: Promise<{ module: string }> };
 
@@ -42,5 +45,12 @@ export default async function ProductModulePage({ params }: ModulePageProps) {
    * restarts, so without this the transition would vanish between modules.
    */
   if (slug === "renewals") return <ResponsibilitiesScreen />;
+  if (slug === "health") {
+    const session = await getServerSession();
+    const entries = session?.user?.id
+      ? await getHealthEntries(session.user.id)
+      : [];
+    return <HealthHubScreen initialEntries={entries} />;
+  }
   return <ModuleScreen key={slug} module={productModule} />;
 }

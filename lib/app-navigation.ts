@@ -331,14 +331,14 @@ export const productModules: ProductModule[] = [
   },
   {
     slug: "health",
-    name: "Health",
-    shortName: "Health",
+    name: "Health Hub",
+    shortName: "Health Hub",
     description:
-      "Medicines, appointments, hydration, reports, and care routines without clutter.",
+      "Measurements, activities, and wellness signals in one calm, connected space.",
     eyebrow: "Personal wellbeing",
     icon: HeartPulse,
     accent: "bg-danger-soft text-danger",
-    primaryAction: "Add a health item",
+    primaryAction: "Log health",
     metrics: [
       { label: "Today’s care", value: "0", detail: "Scheduled items" },
       { label: "Medicines", value: "0", detail: "Active reminders" },

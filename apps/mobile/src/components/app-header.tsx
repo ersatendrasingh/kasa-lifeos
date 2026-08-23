@@ -1,4 +1,5 @@
 import { router } from "expo-router";
+import { Image } from "expo-image";
 import { SymbolView } from "expo-symbols";
 import { useEffect, useState } from "react";
 import {
@@ -16,14 +17,21 @@ import {
   listNotifications,
   NOTIFICATION_CHANGED_EVENT,
 } from "@/lib/notifications";
+import {
+  getProfileDetails,
+  PROFILE_CHANGED_EVENT,
+} from "@/lib/profile-details";
 
 export function AppHeader({ label }: { label: string }) {
   const c = useTheme();
   const { data: session } = authClient.useSession();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [preferredName, setPreferredName] = useState("");
+  const displayName = preferredName.trim() || session?.user.name || "K";
   const initials =
-    session?.user.name
+    displayName
       ?.trim()
       .split(/\s+/)
       .slice(0, 2)
@@ -49,6 +57,28 @@ export function AppHeader({ label }: { label: string }) {
       subscription.remove();
     };
   }, []);
+
+  useEffect(() => {
+    if (!session?.user.id) return;
+    let active = true;
+    const refresh = () => {
+      void getProfileDetails(session.user.id).then((details) => {
+        if (active) {
+          setAvatarUrl(details.avatarUrl);
+          setPreferredName(details.preferredName);
+        }
+      });
+    };
+    refresh();
+    const subscription = DeviceEventEmitter.addListener(
+      PROFILE_CHANGED_EVENT,
+      refresh,
+    );
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, [session?.user.id]);
 
   return (
     <>
@@ -96,9 +126,13 @@ export function AppHeader({ label }: { label: string }) {
             onPress={() => router.push("/profile")}
             style={[s.avatar, { backgroundColor: c.text }]}
           >
-            <Text style={[s.avatarText, { color: c.background }]}>
-              {initials}
-            </Text>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={s.avatarImage} alt="" />
+            ) : (
+              <Text style={[s.avatarText, { color: c.background }]}>
+                {initials}
+              </Text>
+            )}
           </Pressable>
         </View>
       </View>
@@ -139,6 +173,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   avatarText: { fontSize: 13, fontWeight: "900" },
+  avatarImage: { width: "100%", height: "100%", borderRadius: 21 },
   rightActions: { flexDirection: "row", alignItems: "center", gap: 7 },
   bell: {
     width: 38,

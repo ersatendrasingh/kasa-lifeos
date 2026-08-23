@@ -26,11 +26,11 @@ const sections = [
     title: "YOUR LIFE",
     items: [
       ["folder.fill", "Memory Vault", "/life"],
-      ["heart.fill", "Health & Habits", "/life"],
+      ["heart.fill", "Health Hub", "/health"],
       ["creditcard.fill", "Money & Bills", "/life"],
-      ["person.2.fill", "People & Follow-ups", "/life"],
+      ["person.2.fill", "People & Follow-ups", "/people"],
       ["house.lodge.fill", "Home & Vehicle", "/life"],
-      ["book.fill", "Learning & Goals", "/life"],
+      ["flag.checkered", "Growth missions", "/growth"],
     ],
   },
 ] as const;
@@ -46,7 +46,15 @@ export function LifeDrawer({
   const insets = useSafeAreaInsets();
 
   function navigate(
-    href: "/" | "/inbox" | "/calendar" | "/timeline" | "/life",
+    href:
+      | "/"
+      | "/inbox"
+      | "/calendar"
+      | "/timeline"
+      | "/life"
+      | "/health"
+      | "/people"
+      | "/growth",
   ) {
     onClose();
     router.push(href);

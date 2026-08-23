@@ -33,8 +33,8 @@
           "dark": {
             "backgroundColor": "#FF4F1F"
           },
-          "image": "./assets/images/kasa-launcher-icon-1024.png",
-          "imageWidth": 148
+          "image": "./assets/images/kasa-splash-mark.png",
+          "imageWidth": 132
         }
       ],
       [
@@ -56,13 +56,17 @@
         {
           "color": "#FF6338",
           "defaultChannel": "kasa-reminders",
-          "sounds": [
-            "./assets/sounds/kasa-tone.wav"
-          ],
+          "sounds": ["./assets/sounds/kasa-tone.wav"],
           "enableBackgroundRemoteNotifications": false
         }
       ],
       "expo-secure-store",
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Allow KASA to import the contacts you choose into your private Relationship Hub."
+        }
+      ],
       [
         "expo-local-authentication",
         {
@@ -70,7 +74,15 @@
         }
       ],
       "expo-sharing",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "react-native-ble-manager",
+        {
+          "bluetoothAlwaysPermission": "Allow KASA to connect to your health scale and import measurements.",
+          "isBleRequired": false,
+          "neverForLocation": true
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

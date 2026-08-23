@@ -90,6 +90,17 @@ export default function RootLayout() {
             name="notifications"
             options={{ animation: "slide_from_right" }}
           />
+          <Stack.Screen
+            name="health"
+            options={{ animation: "slide_from_right" }}
+          />
+          <Stack.Screen
+            name="health-devices"
+            options={{ animation: "slide_from_right" }}
+          />
+          <Stack.Screen name="people" options={{ animation: "slide_from_right" }} />
+          <Stack.Screen name="person/[id]" options={{ animation: "slide_from_right" }} />
+          <Stack.Screen name="growth" options={{ animation: "slide_from_right" }} />
         </Stack>
       </ThemeProvider>
     </GestureHandlerRootView>

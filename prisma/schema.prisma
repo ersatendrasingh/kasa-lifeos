@@ -45,6 +45,134 @@ model User {
   lifeRecords           LifeRecord[]
   documents             Document[]
   documentCategories    DocumentCategory[]
+  healthEntries         HealthEntry[]
+  medicinePlans         MedicinePlan[]
+  people                Person[]
+  personMemories        PersonMemory[]
+  missions              Mission[]
+}
+
+// Every measurement, activity and wellness check-in shares this shape. Device
+// connectors normalize their payload before writing here, so consumers never
+// need provider-specific branches.
+model HealthEntry {
+  id         String   @id @default(cuid())
+  userId     String
+  type       String
+  value      Decimal  @db.Decimal(14, 3)
+  unit       String
+  source     String   @default("manual")
+  recordedAt DateTime
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type, recordedAt(sort: Desc)])
+  @@index([userId, recordedAt(sort: Desc)])
+  @@index([source, recordedAt(sort: Desc)])
+}
+
+// A medicine plan is optional. It turns a treatment schedule into calm,
+// individually timed reminders; a generic "medicine" check-in alone never
+// assumes that someone takes medication.
+model MedicinePlan {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  dose      String?
+  times     Json
+  startDate DateTime
+  endDate   DateTime?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, active, startDate])
+}
+
+// A person is deliberately richer than a device contact. It is the private
+// relationship profile that connects practical details with remembered context.
+model Person {
+  id             String   @id @default(cuid())
+  userId         String
+  name           String
+  phone          String?
+  email          String?
+  company        String?
+  role           String?
+  category       String   @default("FRIEND")
+  tags           Json?
+  birthday       DateTime?
+  anniversary    DateTime?
+  address        String?  @db.Text
+  trustLevel     Int      @default(3)
+  favorite       Boolean  @default(false)
+  bloodGroup     String?
+  emergency      Boolean  @default(false)
+  lastContactAt  DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memories       PersonMemory[]
+
+  @@index([userId, favorite, updatedAt(sort: Desc)])
+  @@index([userId, category, updatedAt(sort: Desc)])
+  @@index([userId, lastContactAt])
+}
+
+// Notes, interactions, document references and future AI summaries share one
+// chronological memory stream, so a profile never becomes a collection of tabs.
+model PersonMemory {
+  id         String   @id @default(cuid())
+  userId     String
+  personId   String
+  kind       String   @default("NOTE")
+  title      String
+  detail     String?  @db.Text
+  occurredAt DateTime @default(now())
+  sourceType String?
+  sourceId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  person     Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([personId, occurredAt(sort: Desc)])
+  @@index([userId, kind, occurredAt(sort: Desc)])
+}
+
+model Mission {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  category    String
+  description String?  @db.Text
+  targetValue Decimal? @db.Decimal(14, 2)
+  currentValue Decimal? @db.Decimal(14, 2)
+  unit        String?
+  targetDate  DateTime?
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  milestones  MissionMilestone[]
+
+  @@index([userId, status, updatedAt(sort: Desc)])
+}
+
+model MissionMilestone {
+  id          String   @id @default(cuid())
+  missionId   String
+  title       String
+  completedAt DateTime?
+  position    Int
+  createdAt   DateTime @default(now())
+  mission     Mission  @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@index([missionId, position])
 }
 
 model Account {

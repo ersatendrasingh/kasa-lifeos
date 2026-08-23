@@ -1,4 +1,5 @@
 import { Redirect, router, useFocusEffect } from "expo-router";
+import { Image } from "expo-image";
 import { SymbolView } from "expo-symbols";
 import { useCallback, useState } from "react";
 import {
@@ -41,8 +42,9 @@ export default function ProfileScreen() {
   const [signingOut, setSigningOut] = useState(false);
   const [details, setDetails] = useState<ProfileDetails | null>(null);
   const userId = session?.user.id;
+  const displayName = details?.preferredName.trim() || session?.user.name || "K";
   const initials =
-    session?.user.name
+    displayName
       ?.trim()
       .split(/\s+/)
       .slice(0, 2)
@@ -117,11 +119,19 @@ export default function ProfileScreen() {
         >
           <View style={s.identity}>
             <View style={[s.avatar, { backgroundColor: c.brand }]}>
-              <Text style={s.avatarText}>{initials}</Text>
+              {details?.avatarUrl ? (
+                <Image
+                  source={{ uri: details.avatarUrl }}
+                  style={s.avatarImage}
+                  alt=""
+                />
+              ) : (
+                <Text style={s.avatarText}>{initials}</Text>
+              )}
             </View>
             <View style={s.identityCopy}>
               <Text style={[s.name, { color: c.text }]}>
-                {session.user.name || "Your account"}
+                {displayName}
               </Text>
               <Text style={[s.email, { color: c.textSecondary }]}>
                 {details?.phone || session.user.email}
@@ -335,6 +345,7 @@ const s = StyleSheet.create({
     boxShadow: "0 10px 24px rgba(255,79,31,0.24)",
   },
   avatarText: { color: "#FFFFFF", fontSize: 20, fontWeight: "900" },
+  avatarImage: { width: "100%", height: "100%", borderRadius: 22 },
   identityCopy: { flex: 1, marginLeft: 14 },
   name: { fontSize: 22, fontWeight: "900", letterSpacing: -0.7 },
   email: { fontSize: 11, marginTop: 4 },

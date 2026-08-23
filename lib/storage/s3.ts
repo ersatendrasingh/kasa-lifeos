@@ -82,6 +82,37 @@ export async function signedAttachmentUrl(objectKey: string) {
   );
 }
 
+export async function storeProfileAvatar(input: {
+  userId: string;
+  fileName: string;
+  mimeType: string;
+  bytes: Buffer;
+}) {
+  const config = storageConfig();
+  const key = `${config.prefix}/lifeos-profile-images/${input.userId}/${randomUUID()}${extension(input.fileName) || ".jpg"}`;
+  await config.client.send(
+    new PutObjectCommand({
+      Bucket: config.bucket,
+      Key: key,
+      Body: input.bytes,
+      ContentType: input.mimeType,
+      ContentDisposition: `inline; filename*=UTF-8''${encodeURIComponent(input.fileName)}`,
+      ServerSideEncryption: "AES256",
+      Metadata: { owner: input.userId, source: "kasa-profile-avatar" },
+    }),
+  );
+  return key;
+}
+
+export async function signedProfileAvatarUrl(objectKey: string) {
+  const config = storageConfig();
+  return getSignedUrl(
+    config.client,
+    new GetObjectCommand({ Bucket: config.bucket, Key: objectKey }),
+    { expiresIn: 60 * 60 },
+  );
+}
+
 /*
  * Life Vault documents are stored under their own prefix, separate from
  * automation attachments, so retention and access policies can differ: vault
