@@ -5,7 +5,6 @@ import {
   Alert,
   KeyboardAvoidingView,
   Linking,
-  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -76,6 +75,11 @@ const dateLabel = (value: string) =>
     day: "numeric",
     month: "short",
     year: "numeric",
+  }).format(new Date(value));
+const timeLabel = (value: string) =>
+  new Intl.DateTimeFormat("en-IN", {
+    hour: "numeric",
+    minute: "2-digit",
   }).format(new Date(value));
 
 export default function PersonKhataScreen() {
@@ -217,7 +221,10 @@ export default function PersonKhataScreen() {
         ) : data ? (
           <>
             <ScrollView
-              contentContainerStyle={s.content}
+              contentContainerStyle={[
+                s.content,
+                entryVisible && s.contentWithComposer,
+              ]}
               showsVerticalScrollIndicator={false}
               refreshControl={
                 <RefreshControl
@@ -344,139 +351,148 @@ export default function PersonKhataScreen() {
                 </View>
               )}
             </ScrollView>
-            <View
-              style={[
-                s.footer,
-                { backgroundColor: c.background, borderColor: c.border },
-              ]}
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : undefined}
             >
-              <Pressable
-                onPress={() => void openWhatsApp()}
+              <View
                 style={[
-                  s.messageButton,
-                  { backgroundColor: c.surface, borderColor: c.border },
+                  s.footer,
+                  { backgroundColor: c.background, borderColor: c.border },
                 ]}
               >
-                <SymbolView name="message.fill" size={15} tintColor="#25A85B" />
-                <Text style={[s.messageText, { color: c.text }]}>WhatsApp</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => start(positive ? "RECEIVED" : "LENT")}
-                style={[s.addButton, { backgroundColor: c.brand }]}
-              >
-                <SymbolView name="plus" size={16} tintColor="#fff" />
-                <Text style={s.addText}>Add entry</Text>
-              </Pressable>
-            </View>
+                {entryVisible ? (
+                  <>
+                    <View style={s.composerHead}>
+                      <View
+                        style={[s.sheetIcon, { backgroundColor: c.brandSoft }]}
+                      >
+                        <SymbolView
+                          name={actionCopy[direction].icon}
+                          size={16}
+                          tintColor={c.brand}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.composerTitle, { color: c.text }]}>
+                          {actionCopy[direction].title}
+                        </Text>
+                        <Text
+                          style={[s.composerDetail, { color: c.textSecondary }]}
+                        >
+                          {actionCopy[direction].detail}
+                        </Text>
+                      </View>
+                      <Pressable
+                        disabled={saving}
+                        onPress={() => setEntryVisible(false)}
+                      >
+                        <SymbolView
+                          name="xmark.circle.fill"
+                          size={21}
+                          tintColor={c.textSecondary}
+                        />
+                      </Pressable>
+                    </View>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={s.choiceRow}
+                    >
+                      {(Object.keys(actionCopy) as LedgerDirection[]).map(
+                        (item) => (
+                          <Pressable
+                            key={item}
+                            onPress={() => setDirection(item)}
+                            style={[
+                              s.choice,
+                              {
+                                backgroundColor:
+                                  item === direction ? c.brand : c.surface,
+                                borderColor:
+                                  item === direction ? c.brand : c.border,
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                s.choiceText,
+                                { color: item === direction ? "#fff" : c.text },
+                              ]}
+                            >
+                              {actionCopy[item].label}
+                            </Text>
+                          </Pressable>
+                        ),
+                      )}
+                    </ScrollView>
+                    <View style={s.inlineInputs}>
+                      <TextInput
+                        autoFocus
+                        value={amount}
+                        onChangeText={setAmount}
+                        keyboardType="decimal-pad"
+                        placeholder="₹ Amount"
+                        placeholderTextColor={c.textSecondary}
+                        style={[
+                          s.amount,
+                          {
+                            backgroundColor: c.surface,
+                            borderColor: c.border,
+                            color: c.text,
+                          },
+                        ]}
+                      />
+                      <TextInput
+                        value={note}
+                        onChangeText={setNote}
+                        placeholder="Note"
+                        placeholderTextColor={c.textSecondary}
+                        style={[
+                          s.note,
+                          {
+                            backgroundColor: c.surface,
+                            borderColor: c.border,
+                            color: c.text,
+                          },
+                        ]}
+                      />
+                      <Pressable
+                        disabled={saving}
+                        onPress={() => void saveEntry()}
+                        style={[
+                          s.save,
+                          {
+                            backgroundColor: c.brand,
+                            opacity: saving ? 0.65 : 1,
+                          },
+                        ]}
+                      >
+                        {saving ? (
+                          <KasaSpinner size={18} color="#fff" />
+                        ) : (
+                          <SymbolView
+                            name="arrow.up"
+                            size={16}
+                            tintColor="#fff"
+                          />
+                        )}
+                      </Pressable>
+                    </View>
+                  </>
+                ) : (
+                  <Pressable
+                    onPress={() => start(positive ? "RECEIVED" : "LENT")}
+                    style={[s.addButton, { backgroundColor: c.brand }]}
+                  >
+                    <SymbolView name="plus" size={16} tintColor="#fff" />
+                    <Text style={s.addText}>Add entry</Text>
+                  </Pressable>
+                )}
+              </View>
+            </KeyboardAvoidingView>
           </>
         ) : null}
       </SafeAreaView>
-      <Modal
-        visible={entryVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => !saving && setEntryVisible(false)}
-      >
-        <View style={s.modal}>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={() => !saving && setEntryVisible(false)}
-          />
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-          >
-            <View style={[s.sheet, { backgroundColor: c.background }]}>
-              <View style={[s.handle, { backgroundColor: c.border }]} />
-              <View style={[s.sheetIcon, { backgroundColor: c.brandSoft }]}>
-                <SymbolView
-                  name={actionCopy[direction].icon}
-                  size={18}
-                  tintColor={c.brand}
-                />
-              </View>
-              <Text style={[s.sheetTitle, { color: c.text }]}>
-                {actionCopy[direction].title}
-              </Text>
-              <Text style={[s.sheetCopy, { color: c.textSecondary }]}>
-                {actionCopy[direction].detail}
-              </Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={s.choiceRow}
-              >
-                {(Object.keys(actionCopy) as LedgerDirection[]).map((item) => (
-                  <Pressable
-                    key={item}
-                    onPress={() => setDirection(item)}
-                    style={[
-                      s.choice,
-                      {
-                        backgroundColor:
-                          item === direction ? c.brand : c.surface,
-                        borderColor: item === direction ? c.brand : c.border,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        s.choiceText,
-                        { color: item === direction ? "#fff" : c.text },
-                      ]}
-                    >
-                      {actionCopy[item].label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-              <TextInput
-                autoFocus
-                value={amount}
-                onChangeText={setAmount}
-                keyboardType="decimal-pad"
-                placeholder="₹ Amount"
-                placeholderTextColor={c.textSecondary}
-                style={[
-                  s.amount,
-                  {
-                    backgroundColor: c.surface,
-                    borderColor: c.border,
-                    color: c.text,
-                  },
-                ]}
-              />
-              <TextInput
-                value={note}
-                onChangeText={setNote}
-                placeholder="Add a note (optional)"
-                placeholderTextColor={c.textSecondary}
-                style={[
-                  s.note,
-                  {
-                    backgroundColor: c.surface,
-                    borderColor: c.border,
-                    color: c.text,
-                  },
-                ]}
-              />
-              <Pressable
-                disabled={saving}
-                onPress={() => void saveEntry()}
-                style={[
-                  s.save,
-                  { backgroundColor: c.brand, opacity: saving ? 0.65 : 1 },
-                ]}
-              >
-                {saving ? (
-                  <KasaSpinner size={18} color="#fff" />
-                ) : (
-                  <Text style={s.saveText}>Save to khata</Text>
-                )}
-              </Pressable>
-            </View>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -538,6 +554,14 @@ function Bubble({ entry, brand }: { entry: LedgerEntry; brand: string }) {
             {entry.note}
           </Text>
         ) : null}
+        <Text
+          style={[
+            s.bubbleTime,
+            { color: outgoing ? "rgba(255,255,255,.72)" : "#8B7168" },
+          ]}
+        >
+          {timeLabel(entry.occurredAt)}
+        </Text>
       </View>
     </View>
   );
@@ -570,7 +594,8 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   loader: { flex: 1, alignItems: "center", justifyContent: "center" },
-  content: { paddingHorizontal: 20, paddingBottom: 112 },
+  content: { paddingHorizontal: 20, paddingBottom: 104 },
+  contentWithComposer: { paddingBottom: 245 },
   profile: {
     flexDirection: "row",
     alignItems: "center",
@@ -645,6 +670,12 @@ const s = StyleSheet.create({
   bubbleLabel: { fontSize: 7, fontWeight: "900", letterSpacing: 0.9 },
   bubbleAmount: { fontSize: 17, fontWeight: "900", marginTop: 4 },
   bubbleNote: { fontSize: 10, lineHeight: 14, marginTop: 4 },
+  bubbleTime: {
+    fontSize: 8,
+    fontWeight: "700",
+    marginTop: 6,
+    textAlign: "right",
+  },
   empty: {
     borderWidth: 1,
     borderRadius: 25,
@@ -659,24 +690,11 @@ const s = StyleSheet.create({
     marginTop: 5,
   },
   footer: {
-    height: 85,
     borderTopWidth: 1,
     paddingHorizontal: 20,
     paddingTop: 12,
-    flexDirection: "row",
-    gap: 8,
+    paddingBottom: 14,
   },
-  messageButton: {
-    height: 51,
-    width: 113,
-    borderWidth: 1,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 6,
-  },
-  messageText: { fontSize: 10, fontWeight: "900" },
   addButton: {
     flex: 1,
     height: 51,
@@ -687,24 +705,6 @@ const s = StyleSheet.create({
     gap: 7,
   },
   addText: { color: "#fff", fontSize: 11, fontWeight: "900" },
-  modal: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(12,7,4,.6)",
-  },
-  sheet: {
-    padding: 20,
-    paddingBottom: 31,
-    borderTopLeftRadius: 31,
-    borderTopRightRadius: 31,
-  },
-  handle: {
-    width: 42,
-    height: 4,
-    borderRadius: 5,
-    alignSelf: "center",
-    marginBottom: 14,
-  },
   sheetIcon: {
     width: 38,
     height: 38,
@@ -712,14 +712,13 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  sheetTitle: {
-    fontSize: 23,
+  composerHead: { flexDirection: "row", alignItems: "center", gap: 10 },
+  composerTitle: {
+    fontSize: 13,
     fontWeight: "900",
-    letterSpacing: -0.8,
-    marginTop: 11,
   },
-  sheetCopy: { fontSize: 11, marginTop: 3 },
-  choiceRow: { gap: 7, marginTop: 15 },
+  composerDetail: { fontSize: 9, marginTop: 2 },
+  choiceRow: { gap: 7, marginTop: 10, paddingBottom: 1 },
   choice: {
     height: 36,
     borderWidth: 1,
@@ -729,29 +728,30 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
   },
   choiceText: { fontSize: 9, fontWeight: "900" },
+  inlineInputs: { flexDirection: "row", gap: 7, marginTop: 9 },
   amount: {
-    height: 60,
+    height: 48,
     borderWidth: 1,
-    borderRadius: 18,
-    paddingHorizontal: 15,
-    fontSize: 20,
+    borderRadius: 15,
+    paddingHorizontal: 11,
+    fontSize: 14,
     fontWeight: "900",
-    marginTop: 13,
+    width: 88,
   },
   note: {
-    height: 52,
+    flex: 1,
+    height: 48,
     borderWidth: 1,
-    borderRadius: 17,
-    paddingHorizontal: 15,
-    fontSize: 12,
-    marginTop: 9,
+    borderRadius: 15,
+    paddingHorizontal: 11,
+    fontSize: 11,
   },
   save: {
-    height: 53,
-    borderRadius: 18,
+    width: 48,
+    height: 48,
+    borderRadius: 15,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 13,
   },
   saveText: { color: "#fff", fontSize: 12, fontWeight: "900" },
 });
