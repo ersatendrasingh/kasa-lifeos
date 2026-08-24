@@ -50,6 +50,9 @@ model User {
   people                Person[]
   personMemories        PersonMemory[]
   missions              Mission[]
+  learningTracks        LearningTrack[]
+  moneyTransactions     MoneyTransaction[]
+  ledgerEntries         LedgerEntry[]
 }
 
 // Every measurement, activity and wellness check-in shares this shape. Device
@@ -116,6 +119,7 @@ model Person {
   updatedAt      DateTime @updatedAt
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   memories       PersonMemory[]
+  ledgerEntries  LedgerEntry[]
 
   @@index([userId, favorite, updatedAt(sort: Desc)])
   @@index([userId, category, updatedAt(sort: Desc)])
@@ -173,6 +177,90 @@ model MissionMilestone {
   mission     Mission  @relation(fields: [missionId], references: [id], onDelete: Cascade)
 
   @@index([missionId, position])
+}
+
+// A learning track can be a course, book, skill, practice plan, or interview
+// preparation. Lessons and sessions are intentionally separate: progress and
+// time invested answer two different questions.
+model LearningTrack {
+  id               String            @id @default(cuid())
+  userId           String
+  title            String
+  type             String            @default("COURSE")
+  provider         String?
+  url              String?           @db.Text
+  description      String?           @db.Text
+  status           String            @default("ACTIVE")
+  weeklyGoalMinutes Int               @default(180)
+  lastStudiedAt    DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessons          LearningLesson[]
+  sessions         LearningSession[]
+
+  @@index([userId, status, updatedAt(sort: Desc)])
+}
+
+model LearningLesson {
+  id        String        @id @default(cuid())
+  trackId   String
+  title     String
+  position  Int
+  completedAt DateTime?
+  createdAt DateTime      @default(now())
+  track     LearningTrack @relation(fields: [trackId], references: [id], onDelete: Cascade)
+
+  @@index([trackId, position])
+}
+
+model LearningSession {
+  id        String        @id @default(cuid())
+  trackId   String
+  minutes   Int
+  note      String?       @db.Text
+  studiedAt DateTime      @default(now())
+  createdAt DateTime      @default(now())
+  track     LearningTrack @relation(fields: [trackId], references: [id], onDelete: Cascade)
+
+  @@index([trackId, studiedAt(sort: Desc)])
+}
+
+// Manual cashflow is intentionally separate from account balances. KASA never
+// infers available money from these entries without a future secure bank layer.
+model MoneyTransaction {
+  id         String   @id @default(cuid())
+  userId     String
+  kind       String
+  title      String
+  amount     Decimal  @db.Decimal(14, 2)
+  currency   String   @default("INR")
+  category   String?
+  note       String?  @db.Text
+  occurredAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, kind, occurredAt(sort: Desc)])
+}
+
+// Contact-based khata entries. LENT means the person owes you; BORROWED means
+// you owe them. RECEIVED and PAID settle their respective side.
+model LedgerEntry {
+  id         String   @id @default(cuid())
+  userId     String
+  personId   String
+  direction  String
+  amount     Decimal  @db.Decimal(14, 2)
+  currency   String   @default("INR")
+  note       String?  @db.Text
+  occurredAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  person     Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([userId, personId, occurredAt(sort: Desc)])
 }
 
 model Account {

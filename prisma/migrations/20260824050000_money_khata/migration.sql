@@ -1,0 +1,7 @@
+CREATE TABLE "MoneyTransaction" ("id" TEXT NOT NULL,"userId" TEXT NOT NULL,"kind" TEXT NOT NULL,"title" TEXT NOT NULL,"amount" DECIMAL(14,2) NOT NULL,"currency" TEXT NOT NULL DEFAULT 'INR',"category" TEXT,"note" TEXT,"occurredAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL,CONSTRAINT "MoneyTransaction_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "LedgerEntry" ("id" TEXT NOT NULL,"userId" TEXT NOT NULL,"personId" TEXT NOT NULL,"direction" TEXT NOT NULL,"amount" DECIMAL(14,2) NOT NULL,"currency" TEXT NOT NULL DEFAULT 'INR',"note" TEXT,"occurredAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,CONSTRAINT "LedgerEntry_pkey" PRIMARY KEY ("id"));
+CREATE INDEX "MoneyTransaction_userId_kind_occurredAt_idx" ON "MoneyTransaction"("userId", "kind", "occurredAt" DESC);
+CREATE INDEX "LedgerEntry_userId_personId_occurredAt_idx" ON "LedgerEntry"("userId", "personId", "occurredAt" DESC);
+ALTER TABLE "MoneyTransaction" ADD CONSTRAINT "MoneyTransaction_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "LedgerEntry" ADD CONSTRAINT "LedgerEntry_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "LedgerEntry" ADD CONSTRAINT "LedgerEntry_personId_fkey" FOREIGN KEY ("personId") REFERENCES "Person"("id") ON DELETE CASCADE ON UPDATE CASCADE;
