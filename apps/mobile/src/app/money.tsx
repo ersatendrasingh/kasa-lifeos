@@ -28,6 +28,7 @@ import {
   type MoneyPerson,
   type MoneyWorkspace,
 } from "@/lib/money";
+import { listPeople } from "@/lib/people";
 
 const emptyWorkspace: MoneyWorkspace = {
   people: [],
@@ -90,6 +91,7 @@ const initials = (name: string) =>
 export default function MoneyScreen() {
   const c = useTheme();
   const [workspace, setWorkspace] = useState<MoneyWorkspace>(emptyWorkspace);
+  const [availablePeople, setAvailablePeople] = useState<MoneyPerson[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<"khata" | "cashflow">("khata");
@@ -110,13 +112,29 @@ export default function MoneyScreen() {
   const load = useCallback(async (silent = false) => {
     if (silent) setRefreshing(true);
     try {
-      setWorkspace(await getMoneyWorkspace());
-    } catch (cause) {
-      if (!silent)
+      const [moneyResult, peopleResult] = await Promise.allSettled([
+        getMoneyWorkspace(),
+        listPeople(),
+      ]);
+      if (moneyResult.status === "fulfilled") {
+        setWorkspace(moneyResult.value);
+      } else if (!silent) {
         Alert.alert(
-          "Money is unavailable",
-          cause instanceof Error ? cause.message : "Pull down to try again.",
+          "Khata could not refresh",
+          "Your saved People are still available. Pull down to retry the balance history.",
         );
+      }
+      if (peopleResult.status === "fulfilled") {
+        setAvailablePeople(
+          peopleResult.value.map((person) => ({
+            id: person.id,
+            name: person.name,
+            phone: person.phone,
+            category: person.category,
+            balance: 0,
+          })),
+        );
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -134,21 +152,33 @@ export default function MoneyScreen() {
   const owing = workspace.contacts
     .filter((item) => item.balance < 0)
     .reduce((sum, item) => sum + Math.abs(item.balance), 0);
-  const visibleContacts = useMemo(
+  const allPeople = useMemo(() => {
+    const balances = new Map(
+      workspace.contacts.map((person) => [person.id, person]),
+    );
+    return availablePeople
+      .map((person) => balances.get(person.id) || person)
+      .sort((left, right) => {
+        if (left.balance !== right.balance)
+          return Math.abs(right.balance) - Math.abs(left.balance);
+        return left.name.localeCompare(right.name);
+      });
+  }, [availablePeople, workspace.contacts]);
+  const visiblePeople = useMemo(
     () =>
-      workspace.contacts.filter((person) =>
+      allPeople.filter((person) =>
         person.name.toLowerCase().includes(query.trim().toLowerCase()),
       ),
-    [query, workspace.contacts],
+    [allPeople, query],
   );
   const pickerPeople = useMemo(
     () =>
-      workspace.people.filter((person) =>
+      allPeople.filter((person) =>
         `${person.name} ${person.phone || ""}`
           .toLowerCase()
           .includes(personQuery.trim().toLowerCase()),
       ),
-    [personQuery, workspace.people],
+    [allPeople, personQuery],
   );
 
   function openLedger(nextDirection: LedgerDirection, person?: MoneyPerson) {
@@ -324,25 +354,23 @@ export default function MoneyScreen() {
                 <TextInput
                   value={query}
                   onChangeText={setQuery}
-                  placeholder="Search your khata"
+                  placeholder="Search people"
                   placeholderTextColor={c.textSecondary}
                   style={[s.searchInput, { color: c.text }]}
                 />
               </View>
               <View style={s.sectionHead}>
-                <Text style={[s.heading, { color: c.text }]}>
-                  People with a balance
-                </Text>
+                <Text style={[s.heading, { color: c.text }]}>Your people</Text>
                 <Text style={[s.sectionCount, { color: c.brand }]}>
-                  {workspace.contacts.length} OPEN
+                  {allPeople.length} CONTACTS
                 </Text>
               </View>
               {loading ? (
                 <View style={s.loader}>
                   <KasaSpinner size={28} />
                 </View>
-              ) : visibleContacts.length ? (
-                visibleContacts.map((person) => (
+              ) : visiblePeople.length ? (
+                visiblePeople.map((person) => (
                   <ContactBalance
                     key={person.id}
                     person={person}
@@ -351,6 +379,7 @@ export default function MoneyScreen() {
                     border={c.border}
                     text={c.text}
                     muted={c.textSecondary}
+                    onOpen={() => openLedger("LENT", person)}
                     onSettle={() =>
                       openLedger(
                         person.balance > 0 ? "RECEIVED" : "PAID",
@@ -361,14 +390,14 @@ export default function MoneyScreen() {
                 ))
               ) : (
                 <KhataEmpty
-                  hasPeople={workspace.people.length > 0}
+                  hasPeople={allPeople.length > 0}
                   brand={c.brand}
                   surface={c.surface}
                   border={c.border}
                   text={c.text}
                   muted={c.textSecondary}
                   onAdd={() =>
-                    workspace.people.length
+                    allPeople.length
                       ? openLedger("LENT")
                       : router.push("/people")
                   }
@@ -811,6 +840,7 @@ function ContactBalance({
   border,
   text,
   muted,
+  onOpen,
   onSettle,
 }: {
   person: MoneyPerson;
@@ -819,11 +849,14 @@ function ContactBalance({
   border: string;
   text: string;
   muted: string;
+  onOpen: () => void;
   onSettle: () => void;
 }) {
   const receive = person.balance > 0;
+  const hasBalance = person.balance !== 0;
   return (
-    <View
+    <Pressable
+      onPress={onOpen}
       style={[s.contact, { backgroundColor: surface, borderColor: border }]}
     >
       <View style={[s.avatar, { backgroundColor: brand + "1A" }]}>
@@ -834,21 +867,34 @@ function ContactBalance({
       <View style={s.contactCopy}>
         <Text style={[s.contactName, { color: text }]}>{person.name}</Text>
         <Text style={[s.contactState, { color: muted }]}>
-          {receive ? "They need to return" : "You need to return"}
+          {hasBalance
+            ? receive
+              ? "They need to return"
+              : "You need to return"
+            : "Tap to add a khata entry"}
         </Text>
       </View>
       <View style={s.contactRight}>
-        <Text
-          style={[s.contactAmount, { color: receive ? "#17A36B" : "#D85B45" }]}
-        >
-          {receive ? "+" : "−"}
-          {money(Math.abs(person.balance))}
-        </Text>
-        <Pressable onPress={onSettle}>
-          <Text style={[s.settle, { color: brand }]}>SETTLE</Text>
-        </Pressable>
+        {hasBalance ? (
+          <>
+            <Text
+              style={[
+                s.contactAmount,
+                { color: receive ? "#17A36B" : "#D85B45" },
+              ]}
+            >
+              {receive ? "+" : "−"}
+              {money(Math.abs(person.balance))}
+            </Text>
+            <Pressable onPress={onSettle}>
+              <Text style={[s.settle, { color: brand }]}>SETTLE</Text>
+            </Pressable>
+          </>
+        ) : (
+          <Text style={[s.settle, { color: brand }]}>ADD ENTRY</Text>
+        )}
       </View>
-    </View>
+    </Pressable>
   );
 }
 function LedgerRow({
