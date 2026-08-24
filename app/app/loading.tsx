@@ -1,5 +1,5 @@
 import { TopProgressBar } from "@/components/app/top-progress-bar";
-import { Spinner } from "@/components/ui/spinner";
+import { RouteContentLoader } from "@/components/app/route-content-loader";
 
 /*
  * Suspense fallback for the /app subtree.
@@ -19,9 +19,7 @@ export default function AppSectionLoading() {
   return (
     <>
       <TopProgressBar />
-      <div className="route-loader flex min-h-[60vh] items-center justify-center">
-        <Spinner className="text-brand size-7" />
-      </div>
+      <RouteContentLoader />
     </>
   );
 }

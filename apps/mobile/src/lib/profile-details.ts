@@ -10,6 +10,11 @@ export type ProfileDetails = {
   preferredName: string;
   biologicalSex: "male" | "female" | "";
   heightCm: number | null;
+  panNumber: string;
+  aadhaarNumber: string;
+  bloodGroup: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
   avatarUrl: string;
 };
 
@@ -19,6 +24,11 @@ const emptyProfile: ProfileDetails = {
   preferredName: "",
   biologicalSex: "",
   heightCm: null,
+  panNumber: "",
+  aadhaarNumber: "",
+  bloodGroup: "",
+  emergencyContactName: "",
+  emergencyContactPhone: "",
   avatarUrl: "",
 };
 

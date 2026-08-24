@@ -10,10 +10,14 @@
     "ios": {
       "icon": "./assets/images/kasa-launcher-icon-1024.png",
       "bundleIdentifier": "com.kasa.lifeos",
-      "supportsTablet": false
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSContactsUsageDescription": "Allow KASA to keep your private Relationship Hub ready for people and Khata."
+      }
     },
     "android": {
       "package": "com.kasa.lifeos",
+      "permissions": ["READ_CALENDAR"],
       "adaptiveIcon": {
         "backgroundColor": "#FF4F1F",
         "foregroundImage": "./assets/images/kasa-launcher-icon-1024.png"
@@ -65,6 +69,12 @@
         "expo-contacts",
         {
           "contactsPermission": "Allow KASA to import the contacts you choose into your private Relationship Hub."
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Allow KASA to read birthdays and important dates from your device calendar."
         }
       ],
       [

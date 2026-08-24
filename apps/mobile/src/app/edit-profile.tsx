@@ -29,6 +29,23 @@ import {
 
 type HeightUnit = "cm" | "ft";
 
+const bloodGroups = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+
+function formatPan(value: string) {
+  return value
+    .replace(/[^a-z0-9]/gi, "")
+    .slice(0, 10)
+    .toUpperCase();
+}
+
+function formatAadhaar(value: string) {
+  return value
+    .replace(/\D/g, "")
+    .slice(0, 12)
+    .replace(/(.{4})/g, "$1 ")
+    .trim();
+}
+
 const phoneCountries = [
   { code: "IN", name: "India", dial: "+91" },
   { code: "US", name: "United States", dial: "+1" },
@@ -47,7 +64,9 @@ const phoneCountries = [
 function localDialCode() {
   const locale = Intl.DateTimeFormat().resolvedOptions().locale;
   const region = locale.split("-").find((part) => /^[A-Z]{2}$/.test(part));
-  return phoneCountries.find((country) => country.code === region)?.dial ?? "+91";
+  return (
+    phoneCountries.find((country) => country.code === region)?.dial ?? "+91"
+  );
 }
 
 function splitPhone(value: string) {
@@ -57,7 +76,9 @@ function splitPhone(value: string) {
     .find((country) => compact.startsWith(country.dial));
   return {
     dial: match?.dial ?? localDialCode(),
-    number: match ? compact.slice(match.dial.length) : compact.replace(/^\+/, ""),
+    number: match
+      ? compact.slice(match.dial.length)
+      : compact.replace(/^\+/, ""),
   };
 }
 
@@ -185,6 +206,11 @@ export default function EditProfileScreen() {
   const [biologicalSex, setBiologicalSex] = useState<"male" | "female" | "">(
     "",
   );
+  const [panNumber, setPanNumber] = useState("");
+  const [aadhaarNumber, setAadhaarNumber] = useState("");
+  const [bloodGroup, setBloodGroup] = useState("");
+  const [emergencyContactName, setEmergencyContactName] = useState("");
+  const [emergencyContactPhone, setEmergencyContactPhone] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -199,6 +225,11 @@ export default function EditProfileScreen() {
       setBirthday(details.birthday);
       setHeightCm(details.heightCm ? String(details.heightCm) : "");
       setBiologicalSex(details.biologicalSex);
+      setPanNumber(formatPan(details.panNumber));
+      setAadhaarNumber(formatAadhaar(details.aadhaarNumber));
+      setBloodGroup(details.bloodGroup);
+      setEmergencyContactName(details.emergencyContactName);
+      setEmergencyContactPhone(details.emergencyContactPhone);
       setAvatarUrl(details.avatarUrl);
     });
   }, [session?.user.id, session?.user.name]);
@@ -223,6 +254,11 @@ export default function EditProfileScreen() {
         heightCm: heightCm.trim() ? Number(heightCm) : null,
         biologicalSex,
         avatarUrl,
+        panNumber,
+        aadhaarNumber: aadhaarNumber.replace(/\D/g, ""),
+        bloodGroup,
+        emergencyContactName,
+        emergencyContactPhone,
       });
       router.back();
     } catch (error) {
@@ -398,7 +434,11 @@ export default function EditProfileScreen() {
                   <Text style={[s.dialCode, { color: c.brand }]}>
                     {phoneDialCode}
                   </Text>
-                  <SymbolView name="chevron.down" size={8} tintColor={c.brand} />
+                  <SymbolView
+                    name="chevron.down"
+                    size={8}
+                    tintColor={c.brand}
+                  />
                 </Pressable>
                 <TextInput
                   value={phone}
@@ -543,6 +583,98 @@ export default function EditProfileScreen() {
               <Text style={[s.healthHint, { color: c.textSecondary }]}>
                 Used only for health calculations from connected scales.
               </Text>
+            </View>
+
+            <View style={[s.identitySection, { borderColor: c.border }]}>
+              <View style={s.identitySectionHead}>
+                <View
+                  style={[
+                    s.identitySectionIcon,
+                    { backgroundColor: c.brandSoft },
+                  ]}
+                >
+                  <SymbolView
+                    name="person.text.rectangle.fill"
+                    size={16}
+                    tintColor={c.brand}
+                  />
+                </View>
+                <View>
+                  <Text style={[s.identitySectionTitle, { color: c.text }]}>
+                    Identity & safety
+                  </Text>
+                  <Text
+                    style={[s.identitySectionHint, { color: c.textSecondary }]}
+                  >
+                    Optional — add only what you want KASA to remember.
+                  </Text>
+                </View>
+              </View>
+              <ProfileField
+                colors={c}
+                label="PAN number · optional"
+                value={panNumber}
+                onChangeText={(text) => setPanNumber(formatPan(text))}
+                placeholder="ABCDE1234F"
+                autoCapitalize="characters"
+                maxLength={10}
+              />
+              <ProfileField
+                colors={c}
+                label="Aadhaar number · optional"
+                value={aadhaarNumber}
+                onChangeText={(text) => setAadhaarNumber(formatAadhaar(text))}
+                placeholder="1234 5678 9012"
+                keyboardType="number-pad"
+                maxLength={14}
+              />
+              <Text style={[s.label, { color: c.text }]}>
+                Blood group · optional
+              </Text>
+              <View style={s.bloodGrid}>
+                {bloodGroups.map((group) => (
+                  <Pressable
+                    key={group}
+                    onPress={() =>
+                      setBloodGroup(bloodGroup === group ? "" : group)
+                    }
+                    style={[
+                      s.bloodOption,
+                      {
+                        backgroundColor:
+                          bloodGroup === group ? c.brand : c.surface,
+                        borderColor: bloodGroup === group ? c.brand : c.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        s.bloodOptionText,
+                        { color: bloodGroup === group ? "#FFFFFF" : c.text },
+                      ]}
+                    >
+                      {group}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              <ProfileField
+                colors={c}
+                label="Emergency contact · optional"
+                value={emergencyContactName}
+                onChangeText={setEmergencyContactName}
+                placeholder="Name"
+              />
+              <ProfileField
+                colors={c}
+                label="Emergency contact phone · optional"
+                value={emergencyContactPhone}
+                onChangeText={(text) =>
+                  setEmergencyContactPhone(text.replace(/[^0-9+ ]/g, ""))
+                }
+                placeholder="Phone number"
+                keyboardType="phone-pad"
+              />
             </View>
 
             <View
@@ -945,6 +1077,36 @@ const s = StyleSheet.create({
   },
   segmentText: { fontSize: 11, fontWeight: "800" },
   healthHint: { fontSize: 8, lineHeight: 12, marginTop: 6, marginLeft: 2 },
+  identitySection: {
+    borderTopWidth: 1,
+    marginTop: 25,
+    paddingTop: 20,
+  },
+  identitySectionHead: { flexDirection: "row", gap: 10, marginBottom: 15 },
+  identitySectionIcon: {
+    alignItems: "center",
+    borderRadius: 13,
+    height: 36,
+    justifyContent: "center",
+    width: 36,
+  },
+  identitySectionTitle: { fontSize: 15, fontWeight: "900" },
+  identitySectionHint: {
+    fontSize: 9,
+    lineHeight: 13,
+    marginTop: 2,
+    maxWidth: 270,
+  },
+  bloodGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 2 },
+  bloodOption: {
+    alignItems: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    height: 38,
+    justifyContent: "center",
+    width: "23%",
+  },
+  bloodOptionText: { fontSize: 11, fontWeight: "900" },
   emailCard: {
     minHeight: 66,
     borderRadius: 20,

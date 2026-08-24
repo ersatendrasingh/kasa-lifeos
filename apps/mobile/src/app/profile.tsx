@@ -18,9 +18,9 @@ import { authClient } from "@/lib/auth-client";
 import { getProfileDetails, type ProfileDetails } from "@/lib/profile-details";
 
 const quickActions = [
-  ["lock.shield.fill", "Security"],
-  ["folder.fill", "Life Vault"],
-  ["questionmark.circle.fill", "Support"],
+  ["calendar", "Calendar", "/calendar"],
+  ["heart.fill", "Health", "/health"],
+  ["indianrupeesign.circle.fill", "Money", "/money"],
 ] as const;
 
 const settings = [
@@ -30,7 +30,7 @@ const settings = [
     "Automation & sources",
     "Email, calendar, health and more",
   ],
-  ["faceid", "Face ID", "Enabled"],
+  ["faceid", "App security", "Face ID and app lock"],
   ["bell.fill", "Notifications", "Smart reminders on"],
   ["circle.lefthalf.filled", "Appearance", "System"],
   ["hand.raised.fill", "Privacy & data", "Your controls"],
@@ -42,7 +42,8 @@ export default function ProfileScreen() {
   const [signingOut, setSigningOut] = useState(false);
   const [details, setDetails] = useState<ProfileDetails | null>(null);
   const userId = session?.user.id;
-  const displayName = details?.preferredName.trim() || session?.user.name || "K";
+  const displayName =
+    details?.preferredName.trim() || session?.user.name || "K";
   const initials =
     displayName
       ?.trim()
@@ -130,9 +131,7 @@ export default function ProfileScreen() {
               )}
             </View>
             <View style={s.identityCopy}>
-              <Text style={[s.name, { color: c.text }]}>
-                {displayName}
-              </Text>
+              <Text style={[s.name, { color: c.text }]}>{displayName}</Text>
               <Text style={[s.email, { color: c.textSecondary }]}>
                 {details?.phone || session.user.email}
               </Text>
@@ -174,9 +173,10 @@ export default function ProfileScreen() {
           </Pressable>
 
           <View style={s.quickRow}>
-            {quickActions.map(([icon, label]) => (
+            {quickActions.map(([icon, label, href]) => (
               <Pressable
                 key={label}
+                onPress={() => router.push(href)}
                 style={[
                   s.quickCard,
                   { backgroundColor: c.surface, borderColor: c.border },
@@ -212,7 +212,10 @@ export default function ProfileScreen() {
                     router.push("/edit-profile");
                   if (label === "Automation & sources")
                     router.push("/integrations");
+                  if (label === "App security") router.push("/security");
                   if (label === "Notifications") router.push("/notifications");
+                  if (label === "Appearance") router.push("/appearance");
+                  if (label === "Privacy & data") router.push("/privacy-data");
                 }}
                 style={[
                   s.settingRow,

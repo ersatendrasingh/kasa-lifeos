@@ -9,6 +9,7 @@
     "better-auth": "^1.7.1",
     "expo": "~57.0.15",
     "expo-blur": "~57.0.2",
+    "expo-calendar": "~57.0.1",
     "expo-constants": "~57.0.13",
     "expo-contacts": "~57.0.4",
     "expo-dev-client": "~57.0.14",

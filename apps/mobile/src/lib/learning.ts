@@ -42,6 +42,8 @@ export const createLearningTrack = (input: {
   title: string;
   type: LearningTrack["type"];
   provider?: string;
+  url?: string;
+  description?: string;
   weeklyGoalMinutes: number;
   lessons: string[];
 }) => request<{ track: LearningTrack }>("POST", input);

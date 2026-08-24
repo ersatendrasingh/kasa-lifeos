@@ -46,6 +46,17 @@ const waterGoal = 3_000;
 const stepsGoal = 8_000;
 const sleepGoal = 8;
 
+const referenceRanges: Partial<Record<HealthEntryType, string>> = {
+  bmi: "Healthy reference: 18.5–24.9",
+  bloodSugar: "Fasting reference: 70–99 mg/dL",
+  heartRate: "Resting reference: 60–100 bpm",
+  spo2: "Reference: 95–100%",
+  bodyFat: "Depends on age and sex",
+  temperature: "Reference: 36.1–37.2 °C",
+  bloodPressureSystolic: "Typical reference: under 120 mmHg",
+  bloodPressureDiastolic: "Typical reference: under 80 mmHg",
+};
+
 const entryOptions: Array<{
   type: HealthEntryType;
   label: string;
@@ -855,6 +866,9 @@ function CategoryView({
               (item) => item.label.toLowerCase() === label.toLowerCase(),
             );
             const ItemIcon = decorativeIcons[index % decorativeIcons.length];
+            const latest = match
+              ? entries.find((entry) => entry.type === match.type)
+              : undefined;
             return (
               <button
                 key={label}
@@ -865,7 +879,18 @@ function CategoryView({
                 <span className="bg-card text-muted-foreground grid size-9 place-items-center rounded-xl">
                   <ItemIcon className="size-4" />
                 </span>
-                <span className="flex-1 text-sm font-semibold">{label}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold">{label}</span>
+                  {latest ? (
+                    <span className="text-muted-foreground mt-0.5 block text-xs">
+                      {formatNumber(latest.value)} {latest.unit} · {latest.source === "smart-scale" ? "Scale" : "Manual"}
+                    </span>
+                  ) : match && referenceRanges[match.type] ? (
+                    <span className="text-muted-foreground mt-0.5 block truncate text-xs">
+                      {referenceRanges[match.type]}
+                    </span>
+                  ) : null}
+                </span>
                 {match ? (
                   <Plus className="text-muted-foreground size-4" />
                 ) : (

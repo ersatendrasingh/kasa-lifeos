@@ -4,11 +4,12 @@ import { router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { DeviceEventEmitter, useColorScheme } from "react-native";
+import { DeviceEventEmitter } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { Colors } from "@/constants/theme";
 import { AUTH_REQUIRED_EVENT } from "@/lib/api-client";
+import { useResolvedAppearanceScheme } from "@/lib/appearance";
 import { authClient } from "@/lib/auth-client";
 
 SplashScreen.preventAutoHideAsync();
@@ -23,8 +24,7 @@ Notifications.setNotificationHandler({
 });
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const dark = colorScheme === "dark";
+  const dark = useResolvedAppearanceScheme() === "dark";
 
   useEffect(() => {
     SplashScreen.hideAsync();
@@ -91,6 +91,18 @@ export default function RootLayout() {
             options={{ animation: "slide_from_right" }}
           />
           <Stack.Screen
+            name="security"
+            options={{ animation: "slide_from_right" }}
+          />
+          <Stack.Screen
+            name="appearance"
+            options={{ animation: "slide_from_right" }}
+          />
+          <Stack.Screen
+            name="privacy-data"
+            options={{ animation: "slide_from_right" }}
+          />
+          <Stack.Screen
             name="health"
             options={{ animation: "slide_from_right" }}
           />
@@ -116,6 +128,14 @@ export default function RootLayout() {
           />
           <Stack.Screen
             name="learning"
+            options={{ animation: "slide_from_right" }}
+          />
+          <Stack.Screen
+            name="learning/new"
+            options={{ animation: "slide_from_right" }}
+          />
+          <Stack.Screen
+            name="calendar-new"
             options={{ animation: "slide_from_right" }}
           />
           <Stack.Screen

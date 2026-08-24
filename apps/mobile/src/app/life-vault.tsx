@@ -25,7 +25,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/app-header";
-import { CompactNavDock } from "@/components/compact-nav-dock";
 import { CosmicBackground } from "@/components/cosmic-background";
 import { KasaSpinner } from "@/components/kasa-spinner";
 import { useTheme } from "@/hooks/use-theme";
@@ -698,8 +697,6 @@ export default function LifeVaultScreen() {
           )}
         </ScrollView>
       </SafeAreaView>
-      <CompactNavDock />
-
       <FilterSheet
         visible={filterOpen}
         onClose={() => setFilterOpen(false)}

@@ -34,6 +34,30 @@ async function getUserId(request: Request) {
   return session?.user.id ?? null;
 }
 
+async function addTimelineEvent({
+  userId,
+  title,
+  summary,
+  trackId,
+}: {
+  userId: string;
+  title: string;
+  summary: string;
+  trackId: string;
+}) {
+  await db.timelineEvent.create({
+    data: {
+      userId,
+      type: "LEARNING",
+      title,
+      summary,
+      sourceType: "LearningTrack",
+      sourceId: trackId,
+      metadata: { trackId },
+    },
+  });
+}
+
 export async function GET(request: Request) {
   const userId = await getUserId(request);
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -87,6 +111,12 @@ export async function POST(request: Request) {
     },
     include: { lessons: { orderBy: { position: "asc" } }, sessions: true },
   });
+  await addTimelineEvent({
+    userId,
+    trackId: track.id,
+    title: `Started learning ${track.title}`,
+    summary: `A ${track.type.toLowerCase()} learning track${track.provider ? ` with ${track.provider}` : ""}.`,
+  });
   return Response.json(
     { track: { ...track, weeklyMinutes: 0 } },
     { status: 201 },
@@ -106,7 +136,7 @@ export async function PATCH(request: Request) {
     );
   const track = await db.learningTrack.findFirst({
     where: { id: trackId, userId },
-    select: { id: true },
+    select: { id: true, title: true },
   });
   if (!track) return Response.json({ error: "Not found" }, { status: 404 });
   const value = parsed.data;
@@ -120,6 +150,12 @@ export async function PATCH(request: Request) {
         data: { lastStudiedAt: new Date(), status: "ACTIVE" },
       }),
     ]);
+    await addTimelineEvent({
+      userId,
+      trackId,
+      title: `Studied ${track.title}`,
+      summary: `${value.minutes} focused minute${value.minutes === 1 ? "" : "s"}${value.note ? ` — ${value.note}` : ""}`,
+    });
   } else if (value.action === "toggle-lesson") {
     const lesson = await db.learningLesson.findFirst({
       where: { id: value.lessonId, trackId },
@@ -130,11 +166,27 @@ export async function PATCH(request: Request) {
       where: { id: lesson.id },
       data: { completedAt: value.completed ? new Date() : null },
     });
+    if (value.completed) {
+      await addTimelineEvent({
+        userId,
+        trackId,
+        title: `Completed: ${lesson.title}`,
+        summary: `Finished a lesson in ${track.title}.`,
+      });
+    }
   } else {
     await db.learningTrack.update({
       where: { id: trackId },
       data: { status: value.status },
     });
+    if (value.status === "COMPLETED") {
+      await addTimelineEvent({
+        userId,
+        trackId,
+        title: `Completed ${track.title}`,
+        summary: "Learning track completed.",
+      });
+    }
   }
   return GET(request);
 }

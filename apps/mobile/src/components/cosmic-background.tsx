@@ -1,8 +1,10 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { StyleSheet, View, useColorScheme } from "react-native";
+import { StyleSheet, View } from "react-native";
+
+import { useResolvedAppearanceScheme } from "@/lib/appearance";
 
 export function CosmicBackground() {
-  const dark = useColorScheme() === "dark";
+  const dark = useResolvedAppearanceScheme() === "dark";
 
   return (
     <View pointerEvents="none" style={s.background}>

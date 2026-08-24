@@ -24,7 +24,7 @@ function getMetroApiUrl() {
 export const API_URL =
   process.env.EXPO_PUBLIC_API_URL ??
   getMetroApiUrl() ??
-  "http://localhost:3000";
+  (__DEV__ ? "http://localhost:3000" : "https://lifeos.getkasa.in");
 
 export function apiUrl(path: string) {
   return `${API_URL.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;

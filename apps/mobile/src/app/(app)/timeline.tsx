@@ -25,8 +25,7 @@ import {
   type TimelineEvent,
 } from "@/lib/automation";
 
-type Filter = "All" | "Milestones" | "Health" | "Money";
-const filters: Filter[] = ["All", "Milestones", "Health", "Money"];
+type Filter = string;
 
 type UiEvent = {
   id: string;
@@ -38,7 +37,7 @@ type UiEvent = {
   time: string;
   title: string;
   detail: string;
-  category: Exclude<Filter, "All">;
+  category: string;
   icon: "indianrupeesign.circle.fill" | "cross.case.fill" | "sparkles";
   color: string;
 };
@@ -47,6 +46,9 @@ function toUiEvent(event: TimelineEvent): UiEvent {
   const occurredAt = new Date(event.occurredAt);
   const money = event.type === "FINANCE";
   const health = event.type === "HEALTH";
+  const category = event.type
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
   return {
     id: event.id,
     occurredAt: occurredAt.getTime(),
@@ -69,7 +71,7 @@ function toUiEvent(event: TimelineEvent): UiEvent {
     }).format(occurredAt),
     title: event.title,
     detail: event.summary || "Added by KASA automation",
-    category: money ? "Money" : health ? "Health" : "Milestones",
+    category,
     icon: money
       ? "indianrupeesign.circle.fill"
       : health
@@ -86,6 +88,7 @@ export default function TimelineScreen() {
   const [events, setEvents] = useState<UiEvent[]>([]);
   const [years, setYears] = useState<number[]>([]);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -122,6 +125,7 @@ export default function TimelineScreen() {
     [events, filter, query, selectedYear],
   );
   const groups = [...new Set(visibleEvents.map((event) => event.group))];
+  const filters = ["All", ...new Set(events.map((event) => event.category))];
   const yearMomentCount = events.filter(
     (event) => selectedYear === null || event.year === selectedYear,
   ).length;
@@ -284,7 +288,7 @@ export default function TimelineScreen() {
               </Text>
               <Text style={s.heroTitle}>{yearMomentCount} moments</Text>
               <Text style={s.heroText}>
-                Your story is taking shape beautifully.
+                A calm place to look back and notice your progress.
               </Text>
             </View>
             <View style={s.heroIcon}>
@@ -383,70 +387,124 @@ export default function TimelineScreen() {
                         </Text>
                         <View style={[s.rail, { backgroundColor: c.border }]} />
                       </View>
-                      <ReanimatedSwipeable
-                        containerStyle={s.eventSwipe}
-                        friction={1.6}
-                        overshootRight={false}
-                        renderRightActions={(
-                          _progress,
-                          _translation,
-                          controls,
-                        ) => timelineActions(event, controls)}
-                        rightThreshold={52}
-                      >
-                        <Pressable
-                          style={[
-                            s.eventCard,
-                            {
-                              backgroundColor: c.surface,
-                              borderColor: c.border,
-                            },
-                          ]}
+                      <View style={s.eventContent}>
+                        <ReanimatedSwipeable
+                          containerStyle={s.eventSwipe}
+                          friction={1.6}
+                          overshootRight={false}
+                          renderRightActions={(
+                            _progress,
+                            _translation,
+                            controls,
+                          ) => timelineActions(event, controls)}
+                          rightThreshold={52}
                         >
-                          <View
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`Open ${event.title}`}
+                            onPress={() =>
+                              setSelectedId((current) =>
+                                current === event.id ? null : event.id,
+                              )
+                            }
                             style={[
-                              s.eventIcon,
-                              { backgroundColor: `${event.color}18` },
+                              s.eventCard,
+                              {
+                                backgroundColor: c.surface,
+                                borderColor: c.border,
+                              },
+                              selectedId === event.id && {
+                                borderColor: event.color,
+                                borderWidth: 1.5,
+                              },
                             ]}
                           >
-                            <SymbolView
-                              name={event.icon}
-                              size={17}
-                              tintColor={event.color}
-                            />
-                          </View>
-                          <View style={s.eventCopy}>
-                            <View style={s.eventMeta}>
-                              <Text
-                                style={[s.category, { color: event.color }]}
-                              >
-                                {event.category.toUpperCase()}
+                            <View
+                              style={[
+                                s.eventIcon,
+                                { backgroundColor: `${event.color}18` },
+                              ]}
+                            >
+                              <SymbolView
+                                name={event.icon}
+                                size={17}
+                                tintColor={event.color}
+                              />
+                            </View>
+                            <View style={s.eventCopy}>
+                              <View style={s.eventMeta}>
+                                <Text
+                                  style={[s.category, { color: event.color }]}
+                                >
+                                  {event.category.toUpperCase()}
+                                </Text>
+                                <Text
+                                  style={[s.time, { color: c.textSecondary }]}
+                                >
+                                  {event.time}
+                                </Text>
+                              </View>
+                              <Text style={[s.eventTitle, { color: c.text }]}>
+                                {event.title}
                               </Text>
                               <Text
-                                style={[s.time, { color: c.textSecondary }]}
+                                style={[
+                                  s.eventDetail,
+                                  { color: c.textSecondary },
+                                ]}
                               >
-                                {event.time}
+                                {event.detail}
                               </Text>
                             </View>
-                            <Text style={[s.eventTitle, { color: c.text }]}>
-                              {event.title}
-                            </Text>
+                            <SymbolView
+                              name={
+                                selectedId === event.id
+                                  ? "chevron.up"
+                                  : "chevron.down"
+                              }
+                              size={12}
+                              tintColor={c.textSecondary}
+                            />
+                          </Pressable>
+                        </ReanimatedSwipeable>
+                        {selectedId === event.id ? (
+                          <View
+                            style={[
+                              s.detailCard,
+                              {
+                                backgroundColor: c.brandSoft,
+                                borderColor: `${event.color}40`,
+                              },
+                            ]}
+                          >
+                            <View style={s.detailHead}>
+                              <Text
+                                style={[s.detailLabel, { color: event.color }]}
+                              >
+                                MOMENT DETAILS
+                              </Text>
+                              <Text
+                                style={[
+                                  s.detailDate,
+                                  { color: c.textSecondary },
+                                ]}
+                              >
+                                {event.day} {event.month} {event.year}
+                              </Text>
+                            </View>
                             <Text
-                              style={[
-                                s.eventDetail,
-                                { color: c.textSecondary },
-                              ]}
+                              style={[s.detailText, { color: c.textSecondary }]}
                             >
                               {event.detail}
                             </Text>
+                            <Text
+                              style={[s.detailHint, { color: c.textSecondary }]}
+                            >
+                              Swipe left on this moment to hide or delete it.
+                            </Text>
                           </View>
-                          <SymbolView
-                            name="ellipsis"
-                            size={12}
-                            tintColor={c.textSecondary}
-                          />
-                        </Pressable>
-                      </ReanimatedSwipeable>
+                        ) : null}
+                      </View>
                     </View>
                   ))}
               </View>
@@ -573,7 +631,8 @@ const s = StyleSheet.create({
   month: { fontSize: 8, fontWeight: "900", letterSpacing: 1.1 },
   monthLine: { flex: 1, height: 1 },
   eventRow: { flexDirection: "row", alignItems: "stretch", marginBottom: 10 },
-  eventSwipe: { flex: 1, marginLeft: 5, borderRadius: 22, overflow: "hidden" },
+  eventContent: { flex: 1, marginLeft: 5 },
+  eventSwipe: { borderRadius: 22, overflow: "hidden" },
   swipeActions: { width: 130, flexDirection: "row" },
   swipeAction: {
     width: 65,
@@ -611,6 +670,22 @@ const s = StyleSheet.create({
   time: { fontSize: 7 },
   eventTitle: { fontSize: 13, fontWeight: "800", marginTop: 5 },
   eventDetail: { fontSize: 9, marginTop: 3 },
+  detailCard: {
+    borderWidth: 1,
+    borderRadius: 18,
+    marginTop: 7,
+    paddingHorizontal: 13,
+    paddingVertical: 11,
+  },
+  detailHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  detailLabel: { fontSize: 7, fontWeight: "900", letterSpacing: 0.9 },
+  detailDate: { fontSize: 8, fontWeight: "700" },
+  detailText: { fontSize: 10, lineHeight: 15, marginTop: 7 },
+  detailHint: { fontSize: 8, marginTop: 8 },
   empty: {
     borderWidth: 1,
     borderRadius: 24,

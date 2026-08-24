@@ -24,7 +24,6 @@ import {
 } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/app-header";
-import { CompactNavDock } from "@/components/compact-nav-dock";
 import { CosmicBackground } from "@/components/cosmic-background";
 import { KasaSpinner } from "@/components/kasa-spinner";
 import { useTheme } from "@/hooks/use-theme";
@@ -478,6 +477,11 @@ const emptyProfile: ProfileDetails = {
   preferredName: "",
   biologicalSex: "",
   heightCm: null,
+  panNumber: "",
+  aadhaarNumber: "",
+  bloodGroup: "",
+  emergencyContactName: "",
+  emergencyContactPhone: "",
   avatarUrl: "",
 };
 
@@ -522,9 +526,8 @@ export default function HealthScreen() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [medicinePlanOpen, setMedicinePlanOpen] = useState(false);
   const [weightAnalyticsOpen, setWeightAnalyticsOpen] = useState(false);
-  const [rangeInsightType, setRangeInsightType] = useState<HealthEntryType | null>(
-    requestedMeasure,
-  );
+  const [rangeInsightType, setRangeInsightType] =
+    useState<HealthEntryType | null>(requestedMeasure);
   const [selectedType, setSelectedType] = useState<HealthEntryType>("weight");
   const [value, setValue] = useState("");
   const [medicineName, setMedicineName] = useState("Vitamin D");
@@ -850,7 +853,6 @@ export default function HealthScreen() {
           )}
         </ScrollView>
       </SafeAreaView>
-      <CompactNavDock />
 
       <Modal
         visible={sheetOpen}
@@ -965,12 +967,18 @@ export default function HealthScreen() {
                     style={[
                       s.quickValue,
                       {
-                        backgroundColor: value === preset ? c.brandSoft : c.backgroundElement,
+                        backgroundColor:
+                          value === preset ? c.brandSoft : c.backgroundElement,
                         borderColor: value === preset ? c.brand : "transparent",
                       },
                     ]}
                   >
-                    <Text style={[s.quickValueText, { color: value === preset ? c.brand : c.textSecondary }]}>
+                    <Text
+                      style={[
+                        s.quickValueText,
+                        { color: value === preset ? c.brand : c.textSecondary },
+                      ]}
+                    >
                       {preset} {selected.unit}
                     </Text>
                   </Pressable>
@@ -1716,7 +1724,7 @@ function MeasurementsContent({
                     >
                       {insight.label}
                     </Text>
-                    <Text style={[s.rangeTap, { color: c.textSecondary }]}> 
+                    <Text style={[s.rangeTap, { color: c.textSecondary }]}>
                       VIEW
                     </Text>
                   </View>
@@ -1758,24 +1766,39 @@ function rangeTone(
         : value > insight.max
           ? (value - insight.max) / range
           : 0;
-  return { color: distance > 0.3 ? "#E4574F" : "#E8AE32", label: "Needs attention" };
+  return {
+    color: distance > 0.3 ? "#E4574F" : "#E8AE32",
+    label: "Needs attention",
+  };
 }
 
 function measurementDescription(type: HealthEntryType) {
   const descriptions: Partial<Record<HealthEntryType, string>> = {
-    weight: "Your body weight is most useful as a consistent trend, measured under similar conditions.",
+    weight:
+      "Your body weight is most useful as a consistent trend, measured under similar conditions.",
     bmi: "BMI compares weight with height. It is a screening measure, not a diagnosis.",
-    bodyFat: "Body-fat percentage is a scale estimate of how much of your body weight is fat mass.",
-    bloodPressureSystolic: "Systolic pressure is the top blood-pressure number, measured when your heart contracts.",
-    bloodPressureDiastolic: "Diastolic pressure is the bottom blood-pressure number, measured while your heart rests.",
-    heartRate: "Resting heart rate is most meaningful after sitting quietly for a few minutes.",
+    bodyFat:
+      "Body-fat percentage is a scale estimate of how much of your body weight is fat mass.",
+    bloodPressureSystolic:
+      "Systolic pressure is the top blood-pressure number, measured when your heart contracts.",
+    bloodPressureDiastolic:
+      "Diastolic pressure is the bottom blood-pressure number, measured while your heart rests.",
+    heartRate:
+      "Resting heart rate is most meaningful after sitting quietly for a few minutes.",
     spo2: "Blood oxygen readings can be affected by cold hands, movement, nail products and device accuracy.",
-    bloodSugar: "Blood-glucose meaning depends on timing. This reference is for fasting readings only.",
-    temperature: "Temperature changes with measurement method, time of day and activity.",
-    bodyWaterPercentage: "Body-water percentage is a smart-scale estimate and changes with hydration.",
-    sleep: "Sleep duration is one signal; consistency, quality and how you feel also matter.",
+    bloodSugar:
+      "Blood-glucose meaning depends on timing. This reference is for fasting readings only.",
+    temperature:
+      "Temperature changes with measurement method, time of day and activity.",
+    bodyWaterPercentage:
+      "Body-water percentage is a smart-scale estimate and changes with hydration.",
+    sleep:
+      "Sleep duration is one signal; consistency, quality and how you feel also matter.",
   };
-  return descriptions[type] ?? "This measurement is most useful when you compare readings taken under similar conditions over time.";
+  return (
+    descriptions[type] ??
+    "This measurement is most useful when you compare readings taken under similar conditions over time."
+  );
 }
 
 function MeasurementRangeSheet({
@@ -1798,22 +1821,33 @@ function MeasurementRangeSheet({
   const option = options.find((item) => item.type === type);
   const entry = type ? entries.find((item) => item.type === type) : undefined;
   const value = type === "height" ? profile.heightCm : entry?.value;
-  const insight = type && value !== null && value !== undefined
-    ? healthInsight(type, value, profile)
-    : null;
-  const range = insight?.max !== undefined && insight.min !== undefined
-    ? Math.max(insight.max - insight.min, 1)
-    : null;
-  const marker = range !== null && value !== null && value !== undefined && insight?.min !== undefined
-    ? Math.max(4, Math.min(96, 25 + ((value - insight.min) / range) * 50))
-    : null;
-  const deviation = range !== null && value !== null && value !== undefined && insight?.min !== undefined && insight?.max !== undefined
-    ? value < insight.min
-      ? (insight.min - value) / range
-      : value > insight.max
-        ? (value - insight.max) / range
-        : 0
-    : 0;
+  const insight =
+    type && value !== null && value !== undefined
+      ? healthInsight(type, value, profile)
+      : null;
+  const range =
+    insight?.max !== undefined && insight.min !== undefined
+      ? Math.max(insight.max - insight.min, 1)
+      : null;
+  const marker =
+    range !== null &&
+    value !== null &&
+    value !== undefined &&
+    insight?.min !== undefined
+      ? Math.max(4, Math.min(96, 25 + ((value - insight.min) / range) * 50))
+      : null;
+  const deviation =
+    range !== null &&
+    value !== null &&
+    value !== undefined &&
+    insight?.min !== undefined &&
+    insight?.max !== undefined
+      ? value < insight.min
+        ? (insight.min - value) / range
+        : value > insight.max
+          ? (value - insight.max) / range
+          : 0
+      : 0;
   const tone = insight
     ? insight.status === "on-track"
       ? { color: "#22A06B", label: "PERFECT RANGE" }
@@ -1825,60 +1859,222 @@ function MeasurementRangeSheet({
     : { color: c.textSecondary, label: "NO READING" };
 
   return (
-    <Modal visible={type !== null} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={type !== null}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
       <View style={s.modalRoot}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View style={[s.insightSheet, { backgroundColor: c.background, paddingBottom: Math.max(18, bottomInset) }]}> 
+        <View
+          style={[
+            s.insightSheet,
+            {
+              backgroundColor: c.background,
+              paddingBottom: Math.max(18, bottomInset),
+            },
+          ]}
+        >
           <View style={[s.handle, { backgroundColor: c.border }]} />
           <View style={s.insightHead}>
             <View style={[s.insightIcon, { backgroundColor: c.brandSoft }]}>
-              <SymbolView name={option?.icon ?? "waveform.path.ecg"} size={19} tintColor={c.brand} />
+              <SymbolView
+                name={option?.icon ?? "waveform.path.ecg"}
+                size={19}
+                tintColor={c.brand}
+              />
             </View>
             <View style={s.insightTitleCopy}>
-              <Text style={[s.analyticsEyebrow, { color: c.brand }]}>MEASUREMENT GUIDE</Text>
-              <Text style={[s.insightTitle, { color: c.text }]}>{option?.label ?? "Measurement"}</Text>
+              <Text style={[s.analyticsEyebrow, { color: c.brand }]}>
+                MEASUREMENT GUIDE
+              </Text>
+              <Text style={[s.insightTitle, { color: c.text }]}>
+                {option?.label ?? "Measurement"}
+              </Text>
             </View>
-            <Pressable onPress={onClose} style={[s.close, { backgroundColor: c.backgroundElement }]}>
+            <Pressable
+              onPress={onClose}
+              style={[s.close, { backgroundColor: c.backgroundElement }]}
+            >
               <SymbolView name="xmark" size={13} tintColor={c.text} />
             </Pressable>
           </View>
           <ScrollView showsVerticalScrollIndicator={false}>
             {value !== null && value !== undefined && option ? (
               <>
-                <View style={[s.insightValueCard, { backgroundColor: c.surface, borderColor: c.border }]}>
-                  <Text style={[s.insightYourValue, { color: c.textSecondary }]}>YOUR VALUE</Text>
-                  <Text style={[s.insightNumber, { color: c.text }]}>{format(value)} <Text style={s.insightUnit}>{option.unit === "score" ? "" : option.unit}</Text></Text>
-                  <View style={[s.insightStatePill, { backgroundColor: `${tone.color}20` }]}>
-                    <View style={[s.insightStateDot, { backgroundColor: tone.color }]} />
-                    <Text style={[s.insightStateText, { color: tone.color }]}>{tone.label}</Text>
+                <View
+                  style={[
+                    s.insightValueCard,
+                    { backgroundColor: c.surface, borderColor: c.border },
+                  ]}
+                >
+                  <Text
+                    style={[s.insightYourValue, { color: c.textSecondary }]}
+                  >
+                    YOUR VALUE
+                  </Text>
+                  <Text style={[s.insightNumber, { color: c.text }]}>
+                    {format(value)}{" "}
+                    <Text style={s.insightUnit}>
+                      {option.unit === "score" ? "" : option.unit}
+                    </Text>
+                  </Text>
+                  <View
+                    style={[
+                      s.insightStatePill,
+                      { backgroundColor: `${tone.color}20` },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        s.insightStateDot,
+                        { backgroundColor: tone.color },
+                      ]}
+                    />
+                    <Text style={[s.insightStateText, { color: tone.color }]}>
+                      {tone.label}
+                    </Text>
                   </View>
                 </View>
                 {marker !== null && insight ? (
-                  <View style={[s.spectrumCard, { backgroundColor: c.surface, borderColor: c.border }]}>
-                    <Text style={[s.spectrumLabel, { color: c.textSecondary }]}>TYPICAL RANGE · {insight.range}</Text>
+                  <View
+                    style={[
+                      s.spectrumCard,
+                      { backgroundColor: c.surface, borderColor: c.border },
+                    ]}
+                  >
+                    <Text style={[s.spectrumLabel, { color: c.textSecondary }]}>
+                      TYPICAL RANGE · {insight.range}
+                    </Text>
                     <View style={s.spectrumTrack}>
-                      <View style={[s.spectrumSegment, { flex: 1, backgroundColor: "#E4574F" }]} />
-                      <View style={[s.spectrumSegment, { flex: 1, backgroundColor: "#E8AE32" }]} />
-                      <View style={[s.spectrumSegment, { flex: 2, backgroundColor: "#22A06B" }]} />
-                      <View style={[s.spectrumSegment, { flex: 1, backgroundColor: "#E8AE32" }]} />
-                      <View style={[s.spectrumSegment, { flex: 1, backgroundColor: "#E4574F" }]} />
-                      <View style={[s.spectrumPointer, { left: `${marker}%`, borderColor: c.surface }]} />
+                      <View
+                        style={[
+                          s.spectrumSegment,
+                          { flex: 1, backgroundColor: "#E4574F" },
+                        ]}
+                      />
+                      <View
+                        style={[
+                          s.spectrumSegment,
+                          { flex: 1, backgroundColor: "#E8AE32" },
+                        ]}
+                      />
+                      <View
+                        style={[
+                          s.spectrumSegment,
+                          { flex: 2, backgroundColor: "#22A06B" },
+                        ]}
+                      />
+                      <View
+                        style={[
+                          s.spectrumSegment,
+                          { flex: 1, backgroundColor: "#E8AE32" },
+                        ]}
+                      />
+                      <View
+                        style={[
+                          s.spectrumSegment,
+                          { flex: 1, backgroundColor: "#E4574F" },
+                        ]}
+                      />
+                      <View
+                        style={[
+                          s.spectrumPointer,
+                          { left: `${marker}%`, borderColor: c.surface },
+                        ]}
+                      />
                     </View>
-                    <View style={s.spectrumLegend}><Text style={[s.spectrumLegendText, { color: c.textSecondary }]}>Build up</Text><Text style={[s.spectrumLegendText, { color: c.textSecondary }]}>Typical</Text><Text style={[s.spectrumLegendText, { color: c.textSecondary }]}>Bring down</Text></View>
+                    <View style={s.spectrumLegend}>
+                      <Text
+                        style={[
+                          s.spectrumLegendText,
+                          { color: c.textSecondary },
+                        ]}
+                      >
+                        Build up
+                      </Text>
+                      <Text
+                        style={[
+                          s.spectrumLegendText,
+                          { color: c.textSecondary },
+                        ]}
+                      >
+                        Typical
+                      </Text>
+                      <Text
+                        style={[
+                          s.spectrumLegendText,
+                          { color: c.textSecondary },
+                        ]}
+                      >
+                        Bring down
+                      </Text>
+                    </View>
                   </View>
                 ) : null}
-                <View style={[s.insightDescription, { backgroundColor: c.backgroundElement }]}>
-                  <Text style={[s.insightDescriptionTitle, { color: c.text }]}>What this means</Text>
-                  <Text style={[s.insightDescriptionText, { color: c.textSecondary }]}>{measurementDescription(type!)}</Text>
-                  <Text style={[s.insightAction, { color: tone.color }]}>{insight?.message}</Text>
+                <View
+                  style={[
+                    s.insightDescription,
+                    { backgroundColor: c.backgroundElement },
+                  ]}
+                >
+                  <Text style={[s.insightDescriptionTitle, { color: c.text }]}>
+                    What this means
+                  </Text>
+                  <Text
+                    style={[
+                      s.insightDescriptionText,
+                      { color: c.textSecondary },
+                    ]}
+                  >
+                    {measurementDescription(type!)}
+                  </Text>
+                  <Text style={[s.insightAction, { color: tone.color }]}>
+                    {insight?.message}
+                  </Text>
                 </View>
-                <Text style={[s.insightSource, { color: c.textSecondary }]}>{entry ? `${sourceLabel(entry.source)} · ${new Date(entry.recordedAt).toLocaleString([], { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : "Profile baseline"}</Text>
+                <Text style={[s.insightSource, { color: c.textSecondary }]}>
+                  {entry
+                    ? `${sourceLabel(entry.source)} · ${new Date(entry.recordedAt).toLocaleString([], { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}`
+                    : "Profile baseline"}
+                </Text>
               </>
             ) : (
-              <View style={[s.insightEmpty, { backgroundColor: c.surface, borderColor: c.border }]}><Text style={[s.insightDescriptionTitle, { color: c.text }]}>No reading yet</Text><Text style={[s.insightDescriptionText, { color: c.textSecondary }]}>Add this measurement manually or let a connected health source send it here.</Text></View>
+              <View
+                style={[
+                  s.insightEmpty,
+                  { backgroundColor: c.surface, borderColor: c.border },
+                ]}
+              >
+                <Text style={[s.insightDescriptionTitle, { color: c.text }]}>
+                  No reading yet
+                </Text>
+                <Text
+                  style={[s.insightDescriptionText, { color: c.textSecondary }]}
+                >
+                  Add this measurement manually or let a connected health source
+                  send it here.
+                </Text>
+              </View>
             )}
-            {type ? <Pressable onPress={() => { onClose(); onManual(type); }} style={[s.insightManualButton, { backgroundColor: c.brand }]}><SymbolView name="plus" size={14} tintColor="#FFFFFF" /><Text style={s.insightManualText}>Add manual reading</Text></Pressable> : null}
-            <Text style={[s.insightSafety, { color: c.textSecondary }]}>These are general wellness references, not a medical diagnosis. If you have symptoms or ongoing concerning readings, seek clinical advice.</Text>
+            {type ? (
+              <Pressable
+                onPress={() => {
+                  onClose();
+                  onManual(type);
+                }}
+                style={[s.insightManualButton, { backgroundColor: c.brand }]}
+              >
+                <SymbolView name="plus" size={14} tintColor="#FFFFFF" />
+                <Text style={s.insightManualText}>Add manual reading</Text>
+              </Pressable>
+            ) : null}
+            <Text style={[s.insightSafety, { color: c.textSecondary }]}>
+              These are general wellness references, not a medical diagnosis. If
+              you have symptoms or ongoing concerning readings, seek clinical
+              advice.
+            </Text>
           </ScrollView>
         </View>
       </View>
@@ -2315,7 +2511,10 @@ function MedicinePlanSheet({
     setPlanError("");
     try {
       const startDate = new Date();
-      const endDate = duration === "ongoing" ? null : new Date(Date.now() + Number(duration) * DAY);
+      const endDate =
+        duration === "ongoing"
+          ? null
+          : new Date(Date.now() + Number(duration) * DAY);
       const plan = await createMedicinePlan({
         name: name.trim(),
         dose: dose.trim() || null,
@@ -2330,56 +2529,188 @@ function MedicinePlanSheet({
       setDuration("ongoing");
       onSaved(plan);
     } catch (cause) {
-      setPlanError(cause instanceof Error ? cause.message : "Could not save this medicine plan.");
+      setPlanError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not save this medicine plan.",
+      );
     } finally {
       setSavingPlan(false);
     }
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
       <View style={s.modalRoot}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
-          <View style={[s.medicineSheet, { backgroundColor: c.background, paddingBottom: Math.max(bottomInset, 20) }]}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View
+            style={[
+              s.medicineSheet,
+              {
+                backgroundColor: c.background,
+                paddingBottom: Math.max(bottomInset, 20),
+              },
+            ]}
+          >
             <View style={[s.handle, { backgroundColor: c.border }]} />
             <View style={s.sheetHead}>
               <View style={s.sheetTitleRow}>
-                <View style={[s.sheetEntryIcon, { backgroundColor: c.brandSoft }]}>
+                <View
+                  style={[s.sheetEntryIcon, { backgroundColor: c.brandSoft }]}
+                >
                   <SymbolView name="pills.fill" size={18} tintColor={c.brand} />
                 </View>
                 <View>
-                  <Text style={[s.sheetEyebrow, { color: c.brand }]}>OPTIONAL WELLNESS PLAN</Text>
-                  <Text style={[s.sheetTitle, { color: c.text }]}>Medicine reminders</Text>
+                  <Text style={[s.sheetEyebrow, { color: c.brand }]}>
+                    OPTIONAL WELLNESS PLAN
+                  </Text>
+                  <Text style={[s.sheetTitle, { color: c.text }]}>
+                    Medicine reminders
+                  </Text>
                 </View>
               </View>
-              <Pressable onPress={onClose} style={[s.close, { backgroundColor: c.backgroundElement }]}>
+              <Pressable
+                onPress={onClose}
+                style={[s.close, { backgroundColor: c.backgroundElement }]}
+              >
                 <SymbolView name="xmark" size={13} tintColor={c.text} />
               </Pressable>
             </View>
-            <Text style={[s.medicineSheetIntro, { color: c.textSecondary }]}>Only add a plan if you take medicine regularly. KASA will remind you at the times you choose.</Text>
-            <View style={[s.medicineField, { backgroundColor: c.surface, borderColor: c.border }]}>
-              <Text style={[s.inputLabel, { color: c.textSecondary }]}>MEDICINE NAME</Text>
-              <TextInput value={name} onChangeText={setName} placeholder="e.g. Vitamin D" placeholderTextColor={c.textSecondary} style={[s.input, { color: c.text }]} />
+            <Text style={[s.medicineSheetIntro, { color: c.textSecondary }]}>
+              Only add a plan if you take medicine regularly. KASA will remind
+              you at the times you choose.
+            </Text>
+            <View
+              style={[
+                s.medicineField,
+                { backgroundColor: c.surface, borderColor: c.border },
+              ]}
+            >
+              <Text style={[s.inputLabel, { color: c.textSecondary }]}>
+                MEDICINE NAME
+              </Text>
+              <TextInput
+                value={name}
+                onChangeText={setName}
+                placeholder="e.g. Vitamin D"
+                placeholderTextColor={c.textSecondary}
+                style={[s.input, { color: c.text }]}
+              />
             </View>
-            <View style={[s.medicineField, { backgroundColor: c.surface, borderColor: c.border }]}>
-              <Text style={[s.inputLabel, { color: c.textSecondary }]}>DOSE · OPTIONAL</Text>
-              <TextInput value={dose} onChangeText={setDose} placeholder="e.g. 1 tablet after dinner" placeholderTextColor={c.textSecondary} style={[s.input, { color: c.text }]} />
+            <View
+              style={[
+                s.medicineField,
+                { backgroundColor: c.surface, borderColor: c.border },
+              ]}
+            >
+              <Text style={[s.inputLabel, { color: c.textSecondary }]}>
+                DOSE · OPTIONAL
+              </Text>
+              <TextInput
+                value={dose}
+                onChangeText={setDose}
+                placeholder="e.g. 1 tablet after dinner"
+                placeholderTextColor={c.textSecondary}
+                style={[s.input, { color: c.text }]}
+              />
             </View>
-            <Text style={[s.medicineFieldLabel, { color: c.textSecondary }]}>REMIND ME AT</Text>
+            <Text style={[s.medicineFieldLabel, { color: c.textSecondary }]}>
+              REMIND ME AT
+            </Text>
             <View style={s.timeChoices}>
               {timeChoices.map((time) => {
                 const selected = times.includes(time);
-                return <Pressable key={time} onPress={() => setTimes((current) => selected ? current.filter((item) => item !== time) : [...current, time].sort())} style={[s.timeChoice, { backgroundColor: selected ? c.brand : c.surface, borderColor: selected ? c.brand : c.border }]}><Text style={[s.timeChoiceText, { color: selected ? "#FFFFFF" : c.text }]}>{time}</Text></Pressable>;
+                return (
+                  <Pressable
+                    key={time}
+                    onPress={() =>
+                      setTimes((current) =>
+                        selected
+                          ? current.filter((item) => item !== time)
+                          : [...current, time].sort(),
+                      )
+                    }
+                    style={[
+                      s.timeChoice,
+                      {
+                        backgroundColor: selected ? c.brand : c.surface,
+                        borderColor: selected ? c.brand : c.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        s.timeChoiceText,
+                        { color: selected ? "#FFFFFF" : c.text },
+                      ]}
+                    >
+                      {time}
+                    </Text>
+                  </Pressable>
+                );
               })}
             </View>
-            <Text style={[s.medicineFieldLabel, { color: c.textSecondary }]}>STARTS TODAY · FOR</Text>
+            <Text style={[s.medicineFieldLabel, { color: c.textSecondary }]}>
+              STARTS TODAY · FOR
+            </Text>
             <View style={s.durationChoices}>
-              {(["ongoing", "7", "30"] as const).map((item) => <Pressable key={item} onPress={() => setDuration(item)} style={[s.durationChoice, { backgroundColor: duration === item ? c.brandSoft : c.surface, borderColor: duration === item ? c.brand : c.border }]}><Text style={[s.durationChoiceText, { color: duration === item ? c.brand : c.textSecondary }]}>{item === "ongoing" ? "Ongoing" : `${item} days`}</Text></Pressable>)}
+              {(["ongoing", "7", "30"] as const).map((item) => (
+                <Pressable
+                  key={item}
+                  onPress={() => setDuration(item)}
+                  style={[
+                    s.durationChoice,
+                    {
+                      backgroundColor:
+                        duration === item ? c.brandSoft : c.surface,
+                      borderColor: duration === item ? c.brand : c.border,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      s.durationChoiceText,
+                      { color: duration === item ? c.brand : c.textSecondary },
+                    ]}
+                  >
+                    {item === "ongoing" ? "Ongoing" : `${item} days`}
+                  </Text>
+                </Pressable>
+              ))}
             </View>
-            {planError ? <Text style={[s.sheetError, { color: c.brand }]}>{planError}</Text> : null}
-            <Pressable disabled={savingPlan} onPress={() => void savePlan()} style={[s.saveButton, { backgroundColor: c.brand, opacity: savingPlan ? 0.7 : 1 }]}>
-              {savingPlan ? <KasaSpinner color="#FFFFFF" size={19} /> : <><SymbolView name="bell.badge.fill" size={14} tintColor="#FFFFFF" /><Text style={s.saveText}>Start reminders</Text></>}
+            {planError ? (
+              <Text style={[s.sheetError, { color: c.brand }]}>
+                {planError}
+              </Text>
+            ) : null}
+            <Pressable
+              disabled={savingPlan}
+              onPress={() => void savePlan()}
+              style={[
+                s.saveButton,
+                { backgroundColor: c.brand, opacity: savingPlan ? 0.7 : 1 },
+              ]}
+            >
+              {savingPlan ? (
+                <KasaSpinner color="#FFFFFF" size={19} />
+              ) : (
+                <>
+                  <SymbolView
+                    name="bell.badge.fill"
+                    size={14}
+                    tintColor="#FFFFFF"
+                  />
+                  <Text style={s.saveText}>Start reminders</Text>
+                </>
+              )}
             </Pressable>
           </View>
         </KeyboardAvoidingView>
@@ -2435,22 +2766,35 @@ function CategoryContent({
           onPress={openMedicinePlan}
           style={({ pressed }) => [
             s.medicinePlanCard,
-            { backgroundColor: c.surface, borderColor: c.border, opacity: pressed ? 0.72 : 1 },
+            {
+              backgroundColor: c.surface,
+              borderColor: c.border,
+              opacity: pressed ? 0.72 : 1,
+            },
           ]}
         >
           <View style={[s.medicinePlanIcon, { backgroundColor: c.brandSoft }]}>
             <SymbolView name="pills.fill" size={18} tintColor={c.brand} />
           </View>
           <View style={s.medicinePlanCopy}>
-            <Text style={[s.medicinePlanTitle, { color: c.text }]}>Medicine plan</Text>
-            <Text numberOfLines={2} style={[s.medicinePlanText, { color: c.textSecondary }]}>
+            <Text style={[s.medicinePlanTitle, { color: c.text }]}>
+              Medicine plan
+            </Text>
+            <Text
+              numberOfLines={2}
+              style={[s.medicinePlanText, { color: c.textSecondary }]}
+            >
               {medicinePlans.length
                 ? `${medicinePlans.length} active plan${medicinePlans.length === 1 ? "" : "s"} · ${medicinePlans[0]?.name} at ${medicinePlans[0]?.times.join(", ")}`
                 : "Only set this up if you take a medicine regularly."}
             </Text>
           </View>
           <View style={[s.medicinePlanAction, { backgroundColor: c.brand }]}>
-            <SymbolView name={medicinePlans.length ? "slider.horizontal.3" : "plus"} size={13} tintColor="#FFFFFF" />
+            <SymbolView
+              name={medicinePlans.length ? "slider.horizontal.3" : "plus"}
+              size={13}
+              tintColor="#FFFFFF"
+            />
           </View>
         </Pressable>
       ) : null}
@@ -2977,10 +3321,20 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   insightTitleCopy: { flex: 1, marginLeft: 10 },
-  insightTitle: { fontSize: 22, fontWeight: "900", letterSpacing: -0.8, marginTop: 2 },
+  insightTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    letterSpacing: -0.8,
+    marginTop: 2,
+  },
   insightValueCard: { borderWidth: 1, borderRadius: 23, padding: 15 },
   insightYourValue: { fontSize: 7, fontWeight: "900", letterSpacing: 0.9 },
-  insightNumber: { fontSize: 32, fontWeight: "900", letterSpacing: -1, marginTop: 4 },
+  insightNumber: {
+    fontSize: 32,
+    fontWeight: "900",
+    letterSpacing: -1,
+    marginTop: 4,
+  },
   insightUnit: { fontSize: 12, fontWeight: "800" },
   insightStatePill: {
     alignSelf: "flex-start",
@@ -2994,7 +3348,12 @@ const s = StyleSheet.create({
   },
   insightStateDot: { width: 6, height: 6, borderRadius: 3 },
   insightStateText: { fontSize: 7, fontWeight: "900", letterSpacing: 0.65 },
-  spectrumCard: { borderWidth: 1, borderRadius: 22, padding: 14, marginTop: 10 },
+  spectrumCard: {
+    borderWidth: 1,
+    borderRadius: 22,
+    padding: 14,
+    marginTop: 10,
+  },
   spectrumLabel: { fontSize: 7, fontWeight: "900", letterSpacing: 0.6 },
   spectrumTrack: {
     height: 11,
@@ -3014,13 +3373,27 @@ const s = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     marginLeft: -9.5,
   },
-  spectrumLegend: { flexDirection: "row", justifyContent: "space-between", marginTop: 9 },
+  spectrumLegend: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 9,
+  },
   spectrumLegendText: { fontSize: 7, fontWeight: "700" },
   insightDescription: { borderRadius: 21, padding: 14, marginTop: 10 },
   insightDescriptionTitle: { fontSize: 12, fontWeight: "900" },
   insightDescriptionText: { fontSize: 10, lineHeight: 15, marginTop: 5 },
-  insightAction: { fontSize: 9, fontWeight: "900", lineHeight: 13, marginTop: 9 },
-  insightSource: { fontSize: 8, fontWeight: "700", textAlign: "center", marginTop: 10 },
+  insightAction: {
+    fontSize: 9,
+    fontWeight: "900",
+    lineHeight: 13,
+    marginTop: 9,
+  },
+  insightSource: {
+    fontSize: 8,
+    fontWeight: "700",
+    textAlign: "center",
+    marginTop: 10,
+  },
   insightEmpty: { borderWidth: 1, borderRadius: 22, padding: 16 },
   insightManualButton: {
     minHeight: 49,
@@ -3032,7 +3405,12 @@ const s = StyleSheet.create({
     marginTop: 14,
   },
   insightManualText: { color: "#FFFFFF", fontSize: 12, fontWeight: "900" },
-  insightSafety: { fontSize: 7.5, lineHeight: 11, textAlign: "center", marginTop: 11 },
+  insightSafety: {
+    fontSize: 7.5,
+    lineHeight: 11,
+    textAlign: "center",
+    marginTop: 11,
+  },
   measureTimeline: { borderWidth: 1, borderRadius: 25, overflow: "hidden" },
   measureTimelineRow: {
     minHeight: 64,
@@ -3301,11 +3679,23 @@ const s = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
   },
-  medicinePlanIcon: { width: 43, height: 43, borderRadius: 15, alignItems: "center", justifyContent: "center" },
+  medicinePlanIcon: {
+    width: 43,
+    height: 43,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   medicinePlanCopy: { flex: 1, marginLeft: 11 },
   medicinePlanTitle: { fontSize: 13, fontWeight: "900" },
   medicinePlanText: { fontSize: 8, lineHeight: 12, marginTop: 3 },
-  medicinePlanAction: { width: 34, height: 34, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  medicinePlanAction: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   medicineSheet: {
     borderTopLeftRadius: 35,
     borderTopRightRadius: 35,
@@ -3313,14 +3703,45 @@ const s = StyleSheet.create({
     paddingTop: 10,
     boxShadow: "0 -16px 50px rgba(20,7,2,0.25)",
   },
-  medicineSheetIntro: { fontSize: 9, lineHeight: 14, marginTop: -6, marginBottom: 12 },
-  medicineField: { borderWidth: 1, borderRadius: 18, paddingHorizontal: 13, paddingTop: 8, marginBottom: 9 },
-  medicineFieldLabel: { fontSize: 7, fontWeight: "900", letterSpacing: 0.8, marginTop: 5, marginBottom: 7 },
+  medicineSheetIntro: {
+    fontSize: 9,
+    lineHeight: 14,
+    marginTop: -6,
+    marginBottom: 12,
+  },
+  medicineField: {
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingHorizontal: 13,
+    paddingTop: 8,
+    marginBottom: 9,
+  },
+  medicineFieldLabel: {
+    fontSize: 7,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+    marginTop: 5,
+    marginBottom: 7,
+  },
   timeChoices: { flexDirection: "row", gap: 8 },
-  timeChoice: { flex: 1, height: 43, borderRadius: 14, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  timeChoice: {
+    flex: 1,
+    height: 43,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   timeChoiceText: { fontSize: 11, fontWeight: "900" },
   durationChoices: { flexDirection: "row", gap: 8, marginBottom: 9 },
-  durationChoice: { flex: 1, height: 39, borderRadius: 13, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  durationChoice: {
+    flex: 1,
+    height: 39,
+    borderRadius: 13,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   durationChoiceText: { fontSize: 9, fontWeight: "900" },
   coachCard: { borderWidth: 1, borderRadius: 28, marginTop: 22, padding: 16 },
   coachTop: { flexDirection: "row", alignItems: "center" },
@@ -3656,8 +4077,21 @@ const s = StyleSheet.create({
   valueRow: { flexDirection: "row", alignItems: "center" },
   valueInput: { flex: 1, height: 51, fontSize: 25, fontWeight: "900" },
   unit: { fontSize: 11, fontWeight: "700" },
-  quickValueRow: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 3, marginBottom: 6 },
-  quickValue: { minHeight: 29, borderRadius: 10, borderWidth: 1, paddingHorizontal: 9, alignItems: "center", justifyContent: "center" },
+  quickValueRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 7,
+    marginTop: 3,
+    marginBottom: 6,
+  },
+  quickValue: {
+    minHeight: 29,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   quickValueText: { fontSize: 8, fontWeight: "900" },
   sheetError: { fontSize: 10, fontWeight: "700", marginBottom: 8 },
   saveButton: {

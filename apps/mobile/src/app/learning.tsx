@@ -1,4 +1,4 @@
-import { useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { useCallback, useState } from "react";
 import {
@@ -107,13 +107,7 @@ export default function LearningScreen() {
     }
   }
   async function saveTrack() {
-    if (title.trim().length < 2) {
-      Alert.alert(
-        "Name your track",
-        "For example: React Native or Atomic Habits.",
-      );
-      return;
-    }
+    if (title.trim().length < 2) return;
     setBusy(true);
     try {
       const result = await createLearningTrack({
@@ -123,15 +117,11 @@ export default function LearningScreen() {
         weeklyGoalMinutes: Number(goal) || 180,
         lessons: lessons
           .split("\n")
-          .map((x) => x.trim())
+          .map((item) => item.trim())
           .filter(Boolean),
       });
       setTracks((current) => [result.track, ...current]);
       setCreate(false);
-      setTitle("");
-      setProvider("");
-      setGoal("180");
-      setLessons("");
     } catch (e) {
       Alert.alert(
         "Could not create track",
@@ -231,7 +221,7 @@ export default function LearningScreen() {
           )}
           <View style={s.sectionHead}>
             <Text style={[s.heading, { color: c.text }]}>Your tracks</Text>
-            <Pressable onPress={() => setCreate(true)}>
+            <Pressable onPress={() => router.push("/learning/new")}>
               <Text style={[s.add, { color: c.brand }]}>+ ADD TRACK</Text>
             </Pressable>
           </View>
@@ -296,7 +286,7 @@ export default function LearningScreen() {
                 A course, book, skill or daily practice—make it visible before
                 it gets lost.
               </Text>
-              <Pressable onPress={() => setCreate(true)}>
+              <Pressable onPress={() => router.push("/learning/new")}>
                 <Text style={[s.emptyAction, { color: c.brand }]}>
                   Create a track →
                 </Text>
@@ -373,6 +363,45 @@ export default function LearningScreen() {
                   >
                     <Text style={[s.secondaryText, { color: c.text }]}>
                       {selected.status === "PAUSED" ? "Resume" : "Pause"}
+                    </Text>
+                  </Pressable>
+                </View>
+                <View style={s.detailLinks}>
+                  <Pressable
+                    disabled={busy || selected.status === "COMPLETED"}
+                    onPress={() =>
+                      void mutate({
+                        trackId: selected.id,
+                        action: "set-status",
+                        status: "COMPLETED",
+                      })
+                    }
+                    style={[
+                      s.detailLink,
+                      { backgroundColor: c.surface, borderColor: c.border },
+                    ]}
+                  >
+                    <SymbolView
+                      name="checkmark.circle"
+                      size={15}
+                      tintColor={c.brand}
+                    />
+                    <Text style={[s.detailLinkText, { color: c.text }]}>
+                      {selected.status === "COMPLETED"
+                        ? "Track completed"
+                        : "Mark complete"}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => router.push("/timeline")}
+                    style={[
+                      s.detailLink,
+                      { backgroundColor: c.surface, borderColor: c.border },
+                    ]}
+                  >
+                    <SymbolView name="clock" size={15} tintColor={c.brand} />
+                    <Text style={[s.detailLinkText, { color: c.text }]}>
+                      Timeline
                     </Text>
                   </Pressable>
                 </View>
@@ -744,6 +773,18 @@ const s = StyleSheet.create({
   sheetTitle: { fontSize: 23, fontWeight: "900", letterSpacing: -0.8 },
   sheetMeta: { fontSize: 11, marginTop: 4 },
   sheetActions: { flexDirection: "row", gap: 8, marginTop: 15 },
+  detailLinks: { flexDirection: "row", gap: 8, marginTop: 9 },
+  detailLink: {
+    flex: 1,
+    minHeight: 43,
+    borderWidth: 1,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  detailLinkText: { fontSize: 10, fontWeight: "900" },
   primary: {
     height: 50,
     borderRadius: 17,

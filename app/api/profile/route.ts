@@ -7,7 +7,45 @@ type ProfilePreferences = {
   phone?: string;
   biologicalSex?: "male" | "female" | "";
   heightCm?: number | null;
+  panNumber?: string;
+  aadhaarNumber?: string;
+  bloodGroup?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
 };
+
+const PAN_PATTERN = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+const AADHAAR_PATTERN = /^[2-9][0-9]{11}$/;
+const BLOOD_GROUPS = new Set([
+  "A+",
+  "A-",
+  "B+",
+  "B-",
+  "AB+",
+  "AB-",
+  "O+",
+  "O-",
+]);
+
+function profileResponse(
+  preferences: ProfilePreferences,
+  preferredName = "",
+  avatarUrl = "",
+) {
+  return {
+    birthday: preferences.birthday ?? "",
+    phone: preferences.phone ?? "",
+    biologicalSex: preferences.biologicalSex ?? "",
+    heightCm: preferences.heightCm ?? null,
+    panNumber: preferences.panNumber ?? "",
+    aadhaarNumber: preferences.aadhaarNumber ?? "",
+    bloodGroup: preferences.bloodGroup ?? "",
+    emergencyContactName: preferences.emergencyContactName ?? "",
+    emergencyContactPhone: preferences.emergencyContactPhone ?? "",
+    preferredName,
+    avatarUrl,
+  };
+}
 
 export async function GET(request: Request) {
   const session = await auth.api.getSession({ headers: request.headers });
@@ -33,14 +71,9 @@ export async function GET(request: Request) {
     }
   }
 
-  return Response.json({
-    birthday: preferences.birthday ?? "",
-    phone: preferences.phone ?? "",
-    biologicalSex: preferences.biologicalSex ?? "",
-    heightCm: preferences.heightCm ?? null,
-    preferredName: profile?.preferredName ?? "",
-    avatarUrl,
-  });
+  return Response.json(
+    profileResponse(preferences, profile?.preferredName ?? "", avatarUrl),
+  );
 }
 
 export async function PATCH(request: Request) {
@@ -60,6 +93,27 @@ export async function PATCH(request: Request) {
   const biologicalSex = ["male", "female"].includes(body.biologicalSex ?? "")
     ? body.biologicalSex
     : "";
+  const panNumber = (body.panNumber ?? "").replace(/\s/g, "").toUpperCase();
+  const aadhaarNumber = (body.aadhaarNumber ?? "").replace(/\D/g, "");
+  const bloodGroup = (body.bloodGroup ?? "").trim().toUpperCase();
+  if (panNumber && !PAN_PATTERN.test(panNumber)) {
+    return Response.json(
+      { error: "Enter a valid PAN, for example ABCDE1234F." },
+      { status: 400 },
+    );
+  }
+  if (aadhaarNumber && !AADHAAR_PATTERN.test(aadhaarNumber)) {
+    return Response.json(
+      { error: "Enter a valid 12-digit Aadhaar number." },
+      { status: 400 },
+    );
+  }
+  if (bloodGroup && !BLOOD_GROUPS.has(bloodGroup)) {
+    return Response.json(
+      { error: "Choose a valid blood group." },
+      { status: 400 },
+    );
+  }
   const profile = await db.userProfile.upsert({
     where: { userId: session.user.id },
     create: {
@@ -70,6 +124,11 @@ export async function PATCH(request: Request) {
         phone: body.phone?.trim() ?? "",
         biologicalSex,
         heightCm: normalizedHeight,
+        panNumber,
+        aadhaarNumber,
+        bloodGroup,
+        emergencyContactName: body.emergencyContactName?.trim() ?? "",
+        emergencyContactPhone: body.emergencyContactPhone?.trim() ?? "",
       },
     },
     update: {
@@ -79,17 +138,18 @@ export async function PATCH(request: Request) {
         phone: body.phone?.trim() ?? "",
         biologicalSex,
         heightCm: normalizedHeight,
+        panNumber,
+        aadhaarNumber,
+        bloodGroup,
+        emergencyContactName: body.emergencyContactName?.trim() ?? "",
+        emergencyContactPhone: body.emergencyContactPhone?.trim() ?? "",
       },
     },
     select: { preferredName: true, preferences: true },
   });
   const preferences = (profile.preferences ?? {}) as ProfilePreferences;
 
-  return Response.json({
-    birthday: preferences.birthday ?? "",
-    phone: preferences.phone ?? "",
-    biologicalSex: preferences.biologicalSex ?? "",
-    heightCm: preferences.heightCm ?? null,
-    preferredName: profile.preferredName ?? "",
-  });
+  return Response.json(
+    profileResponse(preferences, profile.preferredName ?? ""),
+  );
 }

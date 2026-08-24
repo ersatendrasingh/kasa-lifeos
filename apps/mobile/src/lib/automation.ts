@@ -41,11 +41,13 @@ export type TimelineEvent = {
 
 export type CalendarItem = {
   id: string;
-  type: "EVENT" | "TASK" | "EXPIRY" | "MOMENT" | "MONEY";
+  type:
+    "EVENT" | "TASK" | "EXPIRY" | "MOMENT" | "MONEY" | "FESTIVAL" | "BIRTHDAY";
   title: string;
   detail: string | null;
   date: string;
   allDay: boolean;
+  meetingUrl?: string | null;
   budgetAmount?: string | null;
   currency?: string | null;
 };
@@ -227,6 +229,39 @@ export async function getCalendar(month: Date) {
   }>(`/api/calendar?month=${key}`);
   if (response.error) throw new Error(response.error.message);
   return response.data ?? { items: [], checklists: [] };
+}
+
+export async function saveDeviceBirthdays(month: Date, items: CalendarItem[]) {
+  const response = await apiFetch("/api/calendar", {
+    method: "POST",
+    body: {
+      month: `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`,
+      birthdays: items.map((item) => ({
+        externalId: item.id,
+        title: item.title,
+        date: item.date,
+      })),
+    },
+  });
+  if (response.error) throw new Error(response.error.message);
+}
+
+export async function createCalendarEvent(input: {
+  title: string;
+  kind: "BIRTHDAY" | "PLAN" | "MEETING" | "OTHER";
+  startsAt: string;
+  durationMinutes: number;
+  allDay: boolean;
+  notes?: string;
+  meetingUrl?: string;
+  weekdays: number[];
+}) {
+  const response = await apiFetch<{ occurrences: number }>("/api/calendar", {
+    method: "POST",
+    body: { action: "manual-event", ...input },
+  });
+  if (response.error) throw new Error(response.error.message);
+  return response.data;
 }
 
 export async function setTimelineEventHidden(id: string, hidden: boolean) {

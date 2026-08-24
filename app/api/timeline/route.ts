@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     db.timelineEvent.findMany({
       where: { userId: session.user.id, hiddenAt: null, occurredAt },
       orderBy: { occurredAt: "desc" },
-      take: 250,
+      take: 1_000,
       select: {
         id: true,
         type: true,

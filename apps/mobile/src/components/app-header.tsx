@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, usePathname } from "expo-router";
 import { Image } from "expo-image";
 import { SymbolView } from "expo-symbols";
 import { useEffect, useState } from "react";
@@ -10,7 +10,6 @@ import {
   View,
 } from "react-native";
 
-import { LifeDrawer } from "@/components/life-drawer";
 import { useTheme } from "@/hooks/use-theme";
 import { authClient } from "@/lib/auth-client";
 import {
@@ -24,8 +23,8 @@ import {
 
 export function AppHeader({ label }: { label: string }) {
   const c = useTheme();
+  const pathname = usePathname();
   const { data: session } = authClient.useSession();
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [avatarUrl, setAvatarUrl] = useState("");
   const [preferredName, setPreferredName] = useState("");
@@ -80,64 +79,69 @@ export function AppHeader({ label }: { label: string }) {
     };
   }, [session?.user.id]);
 
+  const atHome = pathname === "/";
+
   return (
-    <>
-      <View style={s.header}>
+    <View style={s.header}>
+      {atHome ? (
+        <View style={[s.button, { backgroundColor: c.brandSoft }]}>
+          <SymbolView name="sparkles" size={18} tintColor={c.brand} />
+        </View>
+      ) : (
         <Pressable
-          accessibilityLabel="Open life menu"
-          onPress={() => setDrawerOpen(true)}
+          accessibilityLabel="Go to home"
+          onPress={() => router.replace("/")}
           style={[
             s.button,
             { backgroundColor: c.surface, borderColor: c.border },
           ]}
         >
-          <SymbolView name="line.3.horizontal" size={19} tintColor={c.text} />
+          <SymbolView name="house.fill" size={16} tintColor={c.brand} />
         </Pressable>
-        <View style={s.labelWrap}>
-          <View style={[s.liveDot, { backgroundColor: c.positive }]} />
-          <Text numberOfLines={1} style={[s.label, { color: c.textSecondary }]}>
-            {label}
-          </Text>
-        </View>
-        <View style={s.rightActions}>
-          <Pressable
-            accessibilityLabel={`Open notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}
-            onPress={() => router.push("/notifications")}
-            style={[
-              s.bell,
-              { backgroundColor: c.surface, borderColor: c.border },
-            ]}
-          >
-            <SymbolView
-              name={unreadCount ? "bell.fill" : "bell"}
-              size={16}
-              tintColor={unreadCount ? c.brand : c.text}
-            />
-            {unreadCount > 0 && (
-              <View style={[s.badge, { backgroundColor: c.brand }]}>
-                <Text style={s.badgeText}>
-                  {unreadCount > 9 ? "9+" : unreadCount}
-                </Text>
-              </View>
-            )}
-          </Pressable>
-          <Pressable
-            accessibilityLabel="Open profile"
-            onPress={() => router.push("/profile")}
-            style={[s.avatar, { backgroundColor: c.text }]}
-          >
-            {avatarUrl ? (
-              <Image source={{ uri: avatarUrl }} style={s.avatarImage} alt="" />
-            ) : (
-              <Text style={[s.avatarText, { color: c.background }]}>
-                {initials}
-              </Text>
-            )}
-          </Pressable>
-        </View>
+      )}
+      <View style={s.labelWrap}>
+        <View style={[s.liveDot, { backgroundColor: c.positive }]} />
+        <Text numberOfLines={1} style={[s.label, { color: c.textSecondary }]}>
+          {label}
+        </Text>
       </View>
-      <LifeDrawer visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
-    </>
+      <View style={s.rightActions}>
+        <Pressable
+          accessibilityLabel={`Open notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}
+          onPress={() => router.push("/notifications")}
+          style={[
+            s.bell,
+            { backgroundColor: c.surface, borderColor: c.border },
+          ]}
+        >
+          <SymbolView
+            name={unreadCount ? "bell.fill" : "bell"}
+            size={16}
+            tintColor={unreadCount ? c.brand : c.text}
+          />
+          {unreadCount > 0 && (
+            <View style={[s.badge, { backgroundColor: c.brand }]}>
+              <Text style={s.badgeText}>
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </Text>
+            </View>
+          )}
+        </Pressable>
+        <Pressable
+          accessibilityLabel="Open profile"
+          onPress={() => router.push("/profile")}
+          style={[s.avatar, { backgroundColor: c.text }]}
+        >
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={s.avatarImage} alt="" />
+          ) : (
+            <Text style={[s.avatarText, { color: c.background }]}>
+              {initials}
+            </Text>
+          )}
+        </Pressable>
+      </View>
+    </View>
   );
 }
 

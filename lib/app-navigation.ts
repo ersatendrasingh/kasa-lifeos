@@ -36,6 +36,17 @@ export type ProductModule = {
 
 export const productModules: ProductModule[] = [
   {
+    slug: "growth",
+    name: "Growth",
+    shortName: "Growth",
+    description: "Active missions that connect goals, milestones, learning and progress.",
+    eyebrow: "Active missions",
+    icon: Target,
+    accent: "bg-brand-soft text-brand",
+    primaryAction: "Start a mission",
+    metrics: [], focus: [], insight: "",
+  },
+  {
     slug: "calendar",
     name: "Calendar",
     shortName: "Calendar",
@@ -698,6 +709,7 @@ export const navigationGroups = [
       .filter((item) =>
         [
           "goals",
+          "growth",
           "learning",
           "milestones",
           "journal",

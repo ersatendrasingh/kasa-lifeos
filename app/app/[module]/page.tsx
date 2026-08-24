@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { ModuleScreen } from "@/components/app/module-screen";
 import { HealthHubScreen } from "@/components/app/health-hub-screen";
 import { ResponsibilitiesScreen } from "@/components/app/responsibilities-screen";
+import { LearningWorkspace } from "@/components/app/learning-workspace";
+import { MoneyWorkspace } from "@/components/app/money-workspace";
 import { getProductModule, productModules } from "@/lib/app-navigation";
 import { getServerSession } from "@/lib/auth-session";
 import { getHealthEntries } from "@/lib/health/service";
@@ -45,6 +47,8 @@ export default async function ProductModulePage({ params }: ModulePageProps) {
    * restarts, so without this the transition would vanish between modules.
    */
   if (slug === "renewals") return <ResponsibilitiesScreen />;
+  if (slug === "learning") return <LearningWorkspace />;
+  if (slug === "money") return <MoneyWorkspace />;
   if (slug === "health") {
     const session = await getServerSession();
     const entries = session?.user?.id

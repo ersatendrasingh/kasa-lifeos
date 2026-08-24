@@ -3,7 +3,9 @@ import { router } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { useEffect, useState } from "react";
 import {
+  Animated,
   DeviceEventEmitter,
+  ImageBackground,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -13,6 +15,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import healthWellnessHero from "../../../assets/images/health-wellness-hero.png";
+import momentumHero from "../../../assets/images/momentum-hero.png";
 import { AppHeader } from "@/components/app-header";
 import { CosmicBackground } from "@/components/cosmic-background";
 import { KasaSpinner } from "@/components/kasa-spinner";
@@ -24,6 +28,52 @@ import {
   PROFILE_CHANGED_EVENT,
 } from "@/lib/profile-details";
 
+const quickModules = [
+  { label: "Capture", icon: "sparkles", href: "/inbox" },
+  { label: "Calendar", icon: "calendar", href: "/calendar" },
+  { label: "Health", icon: "heart.fill", href: "/health" },
+  { label: "Money", icon: "indianrupeesign.circle", href: "/money" },
+  { label: "People", icon: "person.2.fill", href: "/people" },
+  { label: "To-dos", icon: "checklist", href: "/responsibilities" },
+  { label: "Learning", icon: "book.closed.fill", href: "/learning" },
+  { label: "Growth", icon: "chart.line.uptrend.xyaxis", href: "/growth" },
+  { label: "Vault", icon: "lock.doc.fill", href: "/life-vault" },
+  { label: "Timeline", icon: "clock.arrow.circlepath", href: "/timeline" },
+] as const;
+
+const momentumModules = [
+  {
+    label: "Learning",
+    detail: "Keep learning",
+    icon: "book.closed.fill",
+    href: "/learning",
+  },
+  {
+    label: "Growth",
+    detail: "Move your goals",
+    icon: "chart.line.uptrend.xyaxis",
+    href: "/growth",
+  },
+  {
+    label: "To-dos",
+    detail: "Stay ahead",
+    icon: "checklist",
+    href: "/responsibilities",
+  },
+] as const;
+
+const confettiStyles = [
+  { backgroundColor: "#FFD166", left: 7, top: 11 },
+  { backgroundColor: "#FF657A", left: 39, top: 0 },
+  { backgroundColor: "#FFE4A6", left: 73, top: 18 },
+  { backgroundColor: "#FF91A2", left: 111, top: 4 },
+  { backgroundColor: "#FFD166", left: 149, top: 15 },
+  { backgroundColor: "#FFE4A6", left: 188, top: 2 },
+  { backgroundColor: "#FF657A", left: 222, top: 17 },
+  { backgroundColor: "#FFD166", left: 261, top: 7 },
+  { backgroundColor: "#FFE4A6", left: 300, top: 14 },
+] as const;
+
 export default function TodayScreen() {
   const c = useTheme();
   const { data: session } = authClient.useSession();
@@ -32,8 +82,11 @@ export default function TodayScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [preferredName, setPreferredName] = useState("");
+  const [birthday, setBirthday] = useState("");
   const firstName =
-    preferredName.trim() || session?.user.name?.trim().split(/\s+/)[0] || "there";
+    preferredName.trim() ||
+    session?.user.name?.trim().split(/\s+/)[0] ||
+    "there";
   const date = new Intl.DateTimeFormat("en-IN", {
     weekday: "short",
     day: "numeric",
@@ -42,18 +95,10 @@ export default function TodayScreen() {
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-  const pulseOrder = [
-    "health",
-    "responsibilities",
-    "calendar",
-    "vault",
-    "captures",
-  ];
-  const pulseAreas = overview?.areas
-    .filter((area) => pulseOrder.includes(area.id))
-    .sort((a, b) => pulseOrder.indexOf(a.id) - pulseOrder.indexOf(b.id));
-  const heroItem = overview?.focus[0] ?? overview?.upcoming ?? null;
-  const focusCount = overview?.focus.length ?? 0;
+  const glanceOrder = ["calendar", "responsibilities", "vault", "captures"];
+  const glanceAreas = overview?.areas
+    .filter((area) => glanceOrder.includes(area.id))
+    .sort((a, b) => glanceOrder.indexOf(a.id) - glanceOrder.indexOf(b.id));
 
   async function load(background = false) {
     if (background) setRefreshing(true);
@@ -99,6 +144,7 @@ export default function TodayScreen() {
     const refreshIdentity = () => {
       void getProfileDetails(session.user.id).then((details) => {
         if (active) setPreferredName(details.preferredName);
+        if (active) setBirthday(details.birthday);
       });
     };
     refreshIdentity();
@@ -145,258 +191,165 @@ export default function TodayScreen() {
               <View style={[s.hero, { backgroundColor: c.brand }]}>
                 <View style={s.heroOrbOne} />
                 <View style={s.heroOrbTwo} />
-                <View style={s.heroTop}>
-                  <View style={s.heroCopy}>
-                    <Text style={s.heroEyebrow}>TODAY&apos;S OVERVIEW</Text>
-                    <Text style={s.heroTitle}>
-                      {focusCount
-                        ? `${focusCount} ${focusCount === 1 ? "thing" : "things"} need you`
-                        : "You’re all clear"}
-                    </Text>
-                    <Text style={s.heroSubtitle}>
-                      {focusCount
-                        ? "Only real actions that need your attention."
-                        : "Nothing urgent is waiting right now."}
-                    </Text>
-                  </View>
-                  <View style={s.syncPill}>
-                    <SymbolView
-                      name="arrow.triangle.2.circlepath"
-                      size={16}
-                      tintColor="#FFFFFF"
-                    />
-                    <View>
-                      <Text style={s.syncValue}>
-                        {overview.trackedAreas} areas
-                      </Text>
-                      <Text style={s.syncLabel}>CONNECTED</Text>
-                    </View>
-                  </View>
-                </View>
-                {heroItem && (
-                  <Pressable
-                    onPress={() => router.push(heroItem.href)}
-                    style={s.heroNext}
-                  >
-                    <View style={s.heroNextIcon}>
+                <HeroStatusStack
+                  birthday={birthday}
+                  score={overview.score}
+                  streak={overview.streak}
+                />
+                <View style={s.heroBrandRow}>
+                  <View style={s.heroBrandIdentity}>
+                    <View style={s.heroBrandMark}>
                       <SymbolView
-                        name={heroItem.icon as never}
-                        size={14}
+                        name="sparkles"
+                        size={13}
                         tintColor="#FFFFFF"
                       />
                     </View>
-                    <View style={s.heroNextCopy}>
-                      <Text style={s.heroNextLabel}>
-                        {focusCount ? "NEXT ACTION" : "COMING UP"}
-                      </Text>
-                      <Text numberOfLines={1} style={s.heroNextTitle}>
-                        {heroItem.title}
-                      </Text>
-                    </View>
-                    <SymbolView
-                      name="chevron.right"
-                      size={11}
-                      tintColor="#FFFFFF"
-                    />
-                  </Pressable>
-                )}
+                    <Text style={s.heroEyebrow}>KASA LIFE OS</Text>
+                  </View>
+                </View>
+                <Text style={s.heroTitle}>Your whole life,{"\n"}in sync.</Text>
+                <Text style={s.heroSubtitle}>
+                  Plan what&apos;s next. Care for yourself. Grow with intention.
+                </Text>
+                <View style={s.heroPills}>
+                  {[
+                    ["calendar", "Plan", "/calendar"],
+                    ["heart.fill", "Care", "/health"],
+                    ["chart.line.uptrend.xyaxis", "Grow", "/growth"],
+                  ].map(([icon, label, href]) => (
+                    <Pressable
+                      key={label}
+                      onPress={() =>
+                        router.push(href as "/calendar" | "/health" | "/growth")
+                      }
+                      style={({ pressed }) => [
+                        s.heroPill,
+                        pressed && { opacity: 0.7 },
+                      ]}
+                    >
+                      <SymbolView
+                        name={icon as never}
+                        size={13}
+                        tintColor="#FFFFFF"
+                      />
+                      <Text style={s.heroPillText}>{label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
               </View>
 
-              <Pressable
-                onPress={() => {
-                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push("/inbox");
-                }}
-                style={[
-                  s.capture,
-                  { backgroundColor: c.surface, borderColor: c.border },
-                ]}
-              >
-                <View style={[s.captureIcon, { backgroundColor: c.brandSoft }]}>
-                  <SymbolView name="sparkles" size={21} tintColor={c.brand} />
-                </View>
-                <View style={s.captureCopy}>
-                  <Text style={[s.captureTitle, { color: c.text }]}>
-                    Quick capture
+              <View style={s.quickSection}>
+                <View style={s.quickHeader}>
+                  <Text style={[s.quickTitle, { color: c.text }]}>
+                    Quick access
                   </Text>
-                  <Text style={[s.captureText, { color: c.textSecondary }]}>
-                    Speak or type. KASA organizes the rest.
+                  <Text style={[s.quickHint, { color: c.textSecondary }]}>
+                    Everything, one tap away
                   </Text>
                 </View>
-                <View style={[s.captureAction, { backgroundColor: c.brand }]}>
-                  <SymbolView name="plus" size={17} tintColor="#FFFFFF" />
-                </View>
-              </Pressable>
-
-              <View style={s.sectionHeader}>
-                <View>
-                  <Text style={[s.sectionTitle, { color: c.text }]}>
-                    Life pulse
-                  </Text>
-                  <Text style={[s.sectionMeta, { color: c.textSecondary }]}>
-                    A quick look across your world
-                  </Text>
-                </View>
-                <Pressable onPress={() => router.push("/life")}>
-                  <Text style={[s.seeAll, { color: c.brand }]}>See all</Text>
-                </Pressable>
-              </View>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={s.pulseRow}
-              >
-                {(pulseAreas ?? []).map((area) => (
-                  <Pressable
-                    key={area.id}
-                    onPress={() => router.push(area.href)}
-                    style={[
-                      s.pulseCard,
-                      { backgroundColor: c.surface, borderColor: c.border },
-                    ]}
-                  >
-                    <View style={s.pulseTop}>
-                      <View
-                        style={[s.pulseIcon, { backgroundColor: c.brandSoft }]}
-                      >
-                        <SymbolView
-                          name={area.icon as never}
-                          size={17}
-                          tintColor={c.brand}
-                        />
-                      </View>
-                      <Text style={[s.pulseLabel, { color: c.textSecondary }]}>
-                        {area.label}
-                      </Text>
+                <View style={s.quickGrid}>
+                  {quickModules.map((module) => (
+                    <Pressable
+                      key={module.href}
+                      accessibilityLabel={module.label}
+                      onPress={() => {
+                        void Haptics.impactAsync(
+                          Haptics.ImpactFeedbackStyle.Light,
+                        );
+                        router.push(module.href);
+                      }}
+                      style={({ pressed }) => [
+                        s.quickItem,
+                        pressed && { opacity: 0.66 },
+                      ]}
+                    >
                       <View
                         style={[
-                          s.pulseArrow,
-                          { backgroundColor: c.backgroundElement },
+                          s.quickIcon,
+                          { backgroundColor: c.surface, borderColor: c.border },
                         ]}
                       >
-                        <SymbolView
-                          name="arrow.up.right"
-                          size={10}
-                          tintColor={c.brand}
-                        />
+                        <View
+                          style={[
+                            s.quickIconInner,
+                            { backgroundColor: c.brandSoft },
+                          ]}
+                        >
+                          <SymbolView
+                            name={module.icon as never}
+                            size={18}
+                            tintColor={c.brand}
+                          />
+                        </View>
                       </View>
-                    </View>
-                    <Text style={[s.pulseValue, { color: c.text }]}>
-                      {area.value}
-                    </Text>
-                    <Text
-                      numberOfLines={1}
-                      style={[s.pulseDetail, { color: c.textSecondary }]}
-                    >
-                      {area.detail}
-                    </Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-
-              <View style={s.sectionHeader}>
-                <View>
-                  <Text style={[s.sectionTitle, { color: c.text }]}>Health snapshot</Text>
-                  <Text style={[s.sectionMeta, { color: c.textSecondary }]}>Your latest body signals</Text>
+                      <Text
+                        numberOfLines={1}
+                        style={[s.quickLabel, { color: c.text }]}
+                      >
+                        {module.label}
+                      </Text>
+                    </Pressable>
+                  ))}
                 </View>
-                <Pressable onPress={() => router.push("/health")}>
-                  <Text style={[s.seeAll, { color: c.brand }]}>Health Hub</Text>
-                </Pressable>
               </View>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={s.healthRow}
-              >
-                {overview.healthHighlights.map((item) => (
-                  <Pressable
-                    key={item.id}
-                    onPress={() =>
-                      router.push({ pathname: "/health", params: { measure: item.id } })
-                    }
-                    style={({ pressed }) => [
-                      s.healthCard,
-                      {
-                        backgroundColor: c.surface,
-                        borderColor: c.border,
-                        opacity: pressed ? 0.72 : 1,
-                      },
-                    ]}
-                  >
-                    <View style={s.healthCardTop}>
-                      <View style={[s.healthIcon, { backgroundColor: c.brandSoft }]}>
-                        <SymbolView name={item.icon as never} size={16} tintColor={c.brand} />
-                      </View>
-                      <SymbolView name="chevron.right" size={10} tintColor={c.textSecondary} />
-                    </View>
-                    <Text style={[s.healthLabel, { color: c.textSecondary }]}>{item.label}</Text>
-                    <Text numberOfLines={1} adjustsFontSizeToFit style={[s.healthValue, { color: c.text }]}>{item.value}</Text>
-                    <Text numberOfLines={1} style={[s.healthDetail, { color: item.hasValue ? c.textSecondary : c.brand }]}>{item.detail}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
+
+              <WellbeingHero overview={overview} colors={c} />
 
               <View style={s.sectionHeader}>
                 <View>
                   <Text style={[s.sectionTitle, { color: c.text }]}>
-                    Today&apos;s focus
+                    Keep an eye on
                   </Text>
                   <Text style={[s.sectionMeta, { color: c.textSecondary }]}>
-                    {overview.focus.length
-                      ? `${overview.focus.length} actionable item${overview.focus.length === 1 ? "" : "s"}`
-                      : "Nothing pending today"}
-                  </Text>
-                </View>
-                <View style={[s.countPill, { backgroundColor: c.brandSoft }]}>
-                  <Text style={[s.countText, { color: c.brand }]}>
-                    {overview.focus.length} LEFT
+                    The few updates that matter today
                   </Text>
                 </View>
               </View>
               <View
                 style={[
-                  s.list,
+                  s.glanceList,
                   { backgroundColor: c.surface, borderColor: c.border },
                 ]}
               >
-                {overview.focus.map((item, i) => (
+                {(glanceAreas ?? []).map((area, index) => (
                   <Pressable
-                    key={item.id}
-                    onPress={() => router.push(item.href)}
+                    key={area.id}
+                    onPress={() => router.push(area.href)}
                     style={[
-                      s.focusRow,
-                      i > 0 && { borderTopColor: c.border, borderTopWidth: 1 },
+                      s.glanceRow,
+                      index > 0 && {
+                        borderTopColor: c.border,
+                        borderTopWidth: 1,
+                      },
                     ]}
                   >
                     <View
-                      style={[
-                        s.check,
-                        {
-                          backgroundColor: item.done
-                            ? c.brand
-                            : c.backgroundElement,
-                        },
-                      ]}
+                      style={[s.glanceIcon, { backgroundColor: c.brandSoft }]}
                     >
                       <SymbolView
-                        name={(item.done ? "checkmark" : item.icon) as never}
-                        size={14}
-                        tintColor={item.done ? "#FFFFFF" : c.brand}
+                        name={area.icon as never}
+                        size={16}
+                        tintColor={c.brand}
                       />
                     </View>
-                    <View style={s.focusCopy}>
-                      <Text
-                        style={[
-                          s.focusTitle,
-                          { color: item.done ? c.textSecondary : c.text },
-                        ]}
-                      >
-                        {item.title}
+                    <View style={s.glanceCopy}>
+                      <Text style={[s.glanceLabel, { color: c.text }]}>
+                        {area.label}
                       </Text>
-                      <Text style={[s.focusDetail, { color: c.textSecondary }]}>
-                        {item.detail}
+                      <Text
+                        numberOfLines={1}
+                        style={[s.glanceDetail, { color: c.textSecondary }]}
+                      >
+                        {area.detail}
                       </Text>
                     </View>
+                    <Text
+                      numberOfLines={1}
+                      style={[s.glanceValue, { color: c.brand }]}
+                    >
+                      {area.value}
+                    </Text>
                     <SymbolView
                       name="chevron.right"
                       size={11}
@@ -404,28 +357,170 @@ export default function TodayScreen() {
                     />
                   </Pressable>
                 ))}
-                {!loading && !overview?.focus.length && (
-                  <View style={s.emptyFocus}>
-                    <View style={[s.check, { backgroundColor: c.brandSoft }]}>
+              </View>
+
+              <View style={s.sectionHeader}>
+                <View>
+                  <Text style={[s.sectionTitle, { color: c.text }]}>
+                    Build momentum
+                  </Text>
+                  <Text style={[s.sectionMeta, { color: c.textSecondary }]}>
+                    Make room for the life you want next
+                  </Text>
+                </View>
+              </View>
+              <ImageBackground
+                source={momentumHero}
+                resizeMode="cover"
+                imageStyle={s.momentumImage}
+                style={s.momentumHero}
+              >
+                <View style={s.momentumShade}>
+                  <Text style={s.momentumEyebrow}>ONE STEP AT A TIME</Text>
+                  <Text style={s.momentumTitle}>The good stuff compounds.</Text>
+                  <View style={s.momentumActions}>
+                    {momentumModules.map((module) => (
+                      <Pressable
+                        key={module.href}
+                        onPress={() => router.push(module.href)}
+                        style={({ pressed }) => [
+                          s.momentumAction,
+                          pressed && { opacity: 0.68 },
+                        ]}
+                      >
+                        <SymbolView
+                          name={module.icon as never}
+                          size={14}
+                          tintColor="#FFFFFF"
+                        />
+                        <Text style={s.momentumActionLabel}>
+                          {module.label}
+                        </Text>
+                        <SymbolView
+                          name="chevron.right"
+                          size={10}
+                          tintColor="rgba(255,255,255,0.75)"
+                        />
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              </ImageBackground>
+
+              <View style={s.sectionHeader}>
+                <View>
+                  <Text style={[s.sectionTitle, { color: c.text }]}>
+                    Needs attention
+                  </Text>
+                  <Text style={[s.sectionMeta, { color: c.textSecondary }]}>
+                    {overview.attention.length
+                      ? "The items worth handling now"
+                      : "Nothing urgent right now"}
+                  </Text>
+                </View>
+                <View style={[s.countPill, { backgroundColor: c.brandSoft }]}>
+                  <Text style={[s.countText, { color: c.brand }]}>
+                    {overview.attention.length} NOW
+                  </Text>
+                </View>
+              </View>
+              <View
+                style={[
+                  s.attentionList,
+                  { backgroundColor: c.surface, borderColor: c.border },
+                ]}
+              >
+                {overview.attention.map((item, i) => (
+                  <Pressable
+                    key={item.id}
+                    onPress={() => router.push(item.href)}
+                    style={[
+                      s.attentionRow,
+                      i > 0 && { borderTopColor: c.border, borderTopWidth: 1 },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        s.attentionIcon,
+                        { backgroundColor: c.brandSoft },
+                      ]}
+                    >
+                      <SymbolView
+                        name={item.icon as never}
+                        size={14}
+                        tintColor={c.brand}
+                      />
+                    </View>
+                    <View style={s.attentionCopy}>
+                      <Text style={[s.attentionTitle, { color: c.text }]}>
+                        {item.title}
+                      </Text>
+                      <Text
+                        style={[s.attentionDetail, { color: c.textSecondary }]}
+                      >
+                        {item.detail}
+                      </Text>
+                    </View>
+                    {item.action ? (
+                      <View
+                        style={[
+                          s.attentionAction,
+                          { backgroundColor: c.brandSoft },
+                        ]}
+                      >
+                        <Text
+                          style={[s.attentionActionText, { color: c.brand }]}
+                        >
+                          {item.action}
+                        </Text>
+                      </View>
+                    ) : null}
+                    <SymbolView
+                      name="chevron.right"
+                      size={11}
+                      tintColor={c.textSecondary}
+                    />
+                  </Pressable>
+                ))}
+                {!overview.attention.length && (
+                  <View style={s.attentionEmpty}>
+                    <View
+                      style={[
+                        s.attentionIcon,
+                        { backgroundColor: c.brandSoft },
+                      ]}
+                    >
                       <SymbolView
                         name="checkmark"
                         size={14}
                         tintColor={c.brand}
                       />
                     </View>
-                    <View style={s.focusCopy}>
-                      <Text style={[s.focusTitle, { color: c.text }]}>
-                        All clear
+                    <View style={s.attentionCopy}>
+                      <Text style={[s.attentionTitle, { color: c.text }]}>
+                        You&apos;re clear for now
                       </Text>
-                      <Text style={[s.focusDetail, { color: c.textSecondary }]}>
-                        Capture something whenever it matters.
+                      <Text
+                        style={[s.attentionDetail, { color: c.textSecondary }]}
+                      >
+                        KASA will surface the next thing when it needs you.
                       </Text>
                     </View>
                   </View>
                 )}
               </View>
 
-              {overview?.upcoming && (
+              <View style={s.sectionHeader}>
+                <View>
+                  <Text style={[s.sectionTitle, { color: c.text }]}>
+                    Coming up
+                  </Text>
+                  <Text style={[s.sectionMeta, { color: c.textSecondary }]}>
+                    Your next dated commitment
+                  </Text>
+                </View>
+              </View>
+              {overview.upcoming ? (
                 <Pressable
                   onPress={() => router.push(overview.upcoming!.href)}
                   style={[s.upcoming, { backgroundColor: c.backgroundElement }]}
@@ -442,10 +537,19 @@ export default function TodayScreen() {
                   </View>
                   <View style={s.upcomingCopy}>
                     <Text style={[s.upcomingLabel, { color: c.textSecondary }]}>
-                      COMING UP
+                      NEXT ON YOUR CALENDAR
                     </Text>
-                    <Text style={[s.upcomingTitle, { color: c.text }]}>
+                    <Text
+                      numberOfLines={1}
+                      style={[s.upcomingTitle, { color: c.text }]}
+                    >
                       {overview.upcoming.title}
+                    </Text>
+                    <Text
+                      numberOfLines={1}
+                      style={[s.upcomingDetail, { color: c.textSecondary }]}
+                    >
+                      {overview.upcoming.detail}
                     </Text>
                   </View>
                   <SymbolView
@@ -454,7 +558,33 @@ export default function TodayScreen() {
                     tintColor={c.brand}
                   />
                 </Pressable>
+              ) : (
+                <View
+                  style={[
+                    s.upcomingEmpty,
+                    { backgroundColor: c.surface, borderColor: c.border },
+                  ]}
+                >
+                  <SymbolView
+                    name="calendar.badge.checkmark"
+                    size={17}
+                    tintColor={c.brand}
+                  />
+                  <Text
+                    style={[s.upcomingEmptyText, { color: c.textSecondary }]}
+                  >
+                    Nothing scheduled next—enjoy the space.
+                  </Text>
+                </View>
               )}
+              <View style={s.appFooter}>
+                <View style={[s.footerMark, { backgroundColor: c.brandSoft }]}>
+                  <SymbolView name="sparkles" size={11} tintColor={c.brand} />
+                </View>
+                <Text style={[s.footerText, { color: c.textSecondary }]}>
+                  KASA keeps your day gently in view.
+                </Text>
+              </View>
             </>
           )}
         </ScrollView>
@@ -474,7 +604,11 @@ function HomeSkeleton({ colors: c }: { colors: Theme }) {
       <View style={[s.skeletonHero, block]}>
         <KasaSpinner size={25} />
       </View>
-      <View style={[s.skeletonCapture, block]} />
+      <View style={s.skeletonQuickRow}>
+        {Array.from({ length: 5 }).map((_, index) => (
+          <View key={index} style={[s.skeletonQuick, block]} />
+        ))}
+      </View>
       <View style={s.skeletonSectionRow}>
         <View style={[s.skeletonSectionTitle, block]} />
         <View style={[s.skeletonSectionAction, block]} />
@@ -516,6 +650,264 @@ function HomeLoadError({
   );
 }
 
+function WellbeingHero({
+  overview,
+  colors: c,
+}: {
+  overview: LifeOverview;
+  colors: Theme;
+}) {
+  return (
+    <>
+      <View style={s.sectionHeader}>
+        <View>
+          <Text style={[s.sectionTitle, { color: c.text }]}>
+            Your wellbeing
+          </Text>
+          <Text style={[s.sectionMeta, { color: c.textSecondary }]}>
+            Live readings from Health Hub
+          </Text>
+        </View>
+        <Pressable
+          accessibilityLabel="Open Health Hub"
+          onPress={() => router.push("/health")}
+          style={[s.healthOpen, { backgroundColor: c.brandSoft }]}
+        >
+          <SymbolView name="heart.fill" size={14} tintColor={c.brand} />
+          <SymbolView name="arrow.up.right" size={10} tintColor={c.brand} />
+        </Pressable>
+      </View>
+      <ImageBackground
+        source={healthWellnessHero}
+        resizeMode="cover"
+        imageStyle={s.healthHeroImage}
+        style={s.healthHero}
+      >
+        <View style={s.healthHeroShade}>
+          <Pressable
+            accessibilityLabel="Open Health Hub"
+            onPress={() => router.push("/health")}
+            style={s.healthHeroCopy}
+          >
+            <View style={s.healthHeroEyebrow}>
+              <SymbolView name="heart.fill" size={12} tintColor="#FFFFFF" />
+              <Text style={s.healthHeroEyebrowText}>HEALTH SNAPSHOT</Text>
+            </View>
+            <Text style={s.healthHeroTitle}>Feel good, stay in tune.</Text>
+            <Text style={s.healthHeroSubtitle}>
+              Small signals make a healthier rhythm.
+            </Text>
+          </Pressable>
+          <View style={s.healthMetrics}>
+            {overview.healthHighlights.map((item) => (
+              <Pressable
+                key={item.id}
+                onPress={() =>
+                  router.push({
+                    pathname: "/health",
+                    params: { measure: item.id },
+                  })
+                }
+                style={({ pressed }) => [
+                  s.healthCard,
+                  pressed && { opacity: 0.72 },
+                ]}
+              >
+                <Text style={s.healthLabel}>{item.label}</Text>
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  style={s.healthValue}
+                >
+                  {item.value}
+                </Text>
+                <Text numberOfLines={1} style={s.healthDetail}>
+                  {item.hasValue ? item.detail : "Tap to add"}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      </ImageBackground>
+    </>
+  );
+}
+
+function birthdayState(value: string) {
+  if (!value) return null;
+  const birthday = new Date(value);
+  if (Number.isNaN(birthday.getTime())) return null;
+  const now = new Date();
+  const today =
+    now.getMonth() === birthday.getMonth() &&
+    now.getDate() === birthday.getDate();
+  const next = new Date(
+    now.getFullYear(),
+    birthday.getMonth(),
+    birthday.getDate(),
+  );
+  if (next < new Date(now.getFullYear(), now.getMonth(), now.getDate())) {
+    next.setFullYear(next.getFullYear() + 1);
+  }
+  return {
+    today,
+    next: new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" })
+      .format(next)
+      .toUpperCase(),
+  };
+}
+
+function HeroStatusStack({
+  score,
+  streak,
+  birthday,
+}: {
+  score: number | null;
+  streak: number;
+  birthday: string;
+}) {
+  const birthdayInfo = birthdayState(birthday);
+  const [balloonFloat] = useState(() => new Animated.Value(0));
+  const [confettiFloat] = useState(() => new Animated.Value(0));
+
+  useEffect(() => {
+    if (!birthdayInfo?.today) {
+      balloonFloat.stopAnimation();
+      confettiFloat.stopAnimation();
+      balloonFloat.setValue(0);
+      confettiFloat.setValue(0);
+      return;
+    }
+    const balloonsAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(balloonFloat, {
+          toValue: 1,
+          duration: 1_500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(balloonFloat, {
+          toValue: 0,
+          duration: 1_500,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    const confettiAnimation = Animated.loop(
+      Animated.timing(confettiFloat, {
+        toValue: 1,
+        duration: 2_900,
+        useNativeDriver: true,
+      }),
+    );
+    balloonsAnimation.start();
+    confettiAnimation.start();
+    return () => {
+      balloonsAnimation.stop();
+      confettiAnimation.stop();
+    };
+  }, [balloonFloat, birthdayInfo?.today, confettiFloat]);
+
+  const lift = balloonFloat.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -4],
+  });
+  const confettiDrop = confettiFloat.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-8, 86],
+  });
+  const confettiFade = confettiFloat.interpolate({
+    inputRange: [0, 0.72, 1],
+    outputRange: [0, 1, 0],
+  });
+
+  return (
+    <View style={s.heroStatusStack} pointerEvents="box-none">
+      {birthdayInfo?.today ? (
+        <View pointerEvents="none" style={s.birthdayCelebration}>
+          {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((index) => (
+            <Animated.View
+              key={index}
+              style={[
+                s.confetti,
+                confettiStyles[index],
+                {
+                  opacity: confettiFade,
+                  transform: [
+                    {
+                      translateY: Animated.add(confettiDrop, index * -12),
+                    },
+                    { rotate: `${index % 2 ? 28 : -22}deg` },
+                  ],
+                },
+              ]}
+            />
+          ))}
+          <Animated.View
+            style={[
+              s.celebrationBalloon,
+              s.celebrationBalloonOne,
+              { transform: [{ translateY: lift }] },
+            ]}
+          />
+          <Animated.View
+            style={[
+              s.celebrationBalloon,
+              s.celebrationBalloonTwo,
+              { transform: [{ translateY: Animated.multiply(lift, -0.7) }] },
+            ]}
+          />
+          <Animated.View
+            style={[
+              s.celebrationBalloon,
+              s.celebrationBalloonThree,
+              { transform: [{ translateY: Animated.multiply(lift, 0.6) }] },
+            ]}
+          />
+        </View>
+      ) : null}
+      <View style={s.heroStatusChip}>
+        <Text style={s.heroScoreValue}>{score === null ? "—" : score}</Text>
+        <View style={s.heroScoreCopy}>
+          <Text style={s.heroScoreLabel}>LIFE SCORE</Text>
+          <Text style={s.heroScoreDetail}>Live balance</Text>
+        </View>
+      </View>
+      {birthdayInfo ? (
+        <Pressable
+          accessibilityLabel={
+            birthdayInfo.today ? "Happy birthday" : "View profile birthday"
+          }
+          onPress={() => router.push("/profile")}
+          style={[s.heroStatusChip, birthdayInfo.today && s.heroBirthdayChip]}
+        >
+          <SymbolView name="gift.fill" size={14} tintColor="#FFFFFF" />
+          <View style={s.heroScoreCopy}>
+            <Text style={s.heroScoreLabel}>
+              {birthdayInfo.today ? "HAPPY BIRTHDAY" : "NEXT BIRTHDAY"}
+            </Text>
+            <Text style={s.heroScoreDetail}>
+              {birthdayInfo.today ? "It’s your day!" : birthdayInfo.next}
+            </Text>
+          </View>
+        </Pressable>
+      ) : null}
+      <Pressable
+        accessibilityLabel="Open Timeline"
+        onPress={() => router.push("/timeline")}
+        style={s.heroStatusChip}
+      >
+        <SymbolView name="flame.fill" size={14} tintColor="#FFFFFF" />
+        <View style={s.heroScoreCopy}>
+          <Text style={s.heroScoreLabel}>
+            {streak} DAY{streak === 1 ? "" : "S"}
+          </Text>
+          <Text style={s.heroScoreDetail}>Your streak</Text>
+        </View>
+      </Pressable>
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
   screen: { flex: 1, overflow: "hidden" },
   safe: { flex: 1 },
@@ -552,13 +944,19 @@ const s = StyleSheet.create({
     left: -42,
     bottom: -62,
   },
-  heroTop: {
+  heroBrandRow: {
+    alignItems: "center",
     flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 12,
   },
-  heroCopy: { flex: 1 },
+  heroBrandIdentity: { alignItems: "center", flexDirection: "row", gap: 7 },
+  heroBrandMark: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.17)",
+    borderRadius: 10,
+    height: 25,
+    justifyContent: "center",
+    width: 25,
+  },
   heroEyebrow: {
     color: "rgba(255,255,255,0.72)",
     fontSize: 9,
@@ -567,96 +965,131 @@ const s = StyleSheet.create({
   },
   heroTitle: {
     color: "#FFFFFF",
-    fontSize: 27,
-    lineHeight: 32,
+    fontSize: 26,
+    lineHeight: 30,
     fontWeight: "900",
     letterSpacing: -1,
     marginTop: 8,
+    maxWidth: 205,
   },
   heroSubtitle: {
     color: "rgba(255,255,255,0.76)",
     fontSize: 10,
     lineHeight: 15,
     marginTop: 5,
-    maxWidth: 225,
+    maxWidth: 205,
   },
-  syncPill: {
-    backgroundColor: "rgba(255,255,255,0.16)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.22)",
-    borderRadius: 18,
-    paddingHorizontal: 11,
-    paddingVertical: 9,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+  heroStatusStack: {
+    gap: 6,
+    position: "absolute",
+    right: 17,
+    top: 19,
+    width: 108,
   },
-  syncValue: { color: "#FFFFFF", fontSize: 10, fontWeight: "800" },
-  syncLabel: {
-    color: "rgba(255,255,255,0.62)",
-    fontSize: 7,
-    fontWeight: "800",
-    letterSpacing: 0.7,
-    marginTop: 2,
+  heroBirthdayChip: {
+    backgroundColor: "rgba(185, 21, 43, 0.66)",
+    borderColor: "rgba(255, 218, 222, 0.52)",
   },
-  heroNext: {
-    minHeight: 52,
-    borderRadius: 18,
-    paddingHorizontal: 11,
-    marginTop: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.15)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
+  heroScoreValue: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "900",
+    letterSpacing: -1,
   },
-  heroNextIcon: {
-    width: 31,
-    height: 31,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.16)",
-  },
-  heroNextCopy: { flex: 1, marginLeft: 10 },
-  heroNextLabel: {
-    color: "rgba(255,255,255,0.62)",
+  heroScoreCopy: { justifyContent: "center" },
+  heroScoreLabel: {
+    color: "rgba(255,255,255,0.88)",
     fontSize: 6,
     fontWeight: "900",
     letterSpacing: 0.8,
   },
-  heroNextTitle: {
-    color: "#FFFFFF",
-    fontSize: 11,
-    fontWeight: "800",
-    marginTop: 3,
+  heroScoreDetail: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 6,
+    fontWeight: "700",
+    marginTop: 1,
   },
-  capture: {
-    minHeight: 76,
+  birthdayCelebration: {
+    height: 135,
+    left: -232,
+    position: "absolute",
+    top: -18,
+    width: 340,
+    zIndex: 0,
+  },
+  confetti: {
+    borderRadius: 2,
+    height: 7,
+    position: "absolute",
+    width: 4,
+  },
+  celebrationBalloon: {
+    borderRadius: 10,
+    height: 22,
+    position: "absolute",
+    width: 17,
+  },
+  celebrationBalloonOne: { backgroundColor: "#FF405A", left: 35, top: 48 },
+  celebrationBalloonTwo: { backgroundColor: "#FF9BA8", left: 66, top: 31 },
+  celebrationBalloonThree: { backgroundColor: "#FFD1D8", left: 95, top: 57 },
+  heroStatusChip: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderColor: "rgba(255,255,255,0.22)",
+    borderRadius: 11,
     borderWidth: 1,
-    borderRadius: 24,
-    marginTop: 14,
-    padding: 13,
     flexDirection: "row",
-    alignItems: "center",
-    boxShadow: "0 8px 26px rgba(55, 23, 11, 0.06)",
+    gap: 7,
+    height: 31,
+    paddingHorizontal: 9,
+    zIndex: 1,
   },
-  captureIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 17,
+  heroPills: { flexDirection: "row", gap: 7, marginTop: 18 },
+  heroPill: {
     alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderColor: "rgba(255,255,255,0.18)",
+    borderRadius: 13,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+  },
+  heroPillText: { color: "#FFFFFF", fontSize: 10, fontWeight: "900" },
+  quickSection: { marginTop: 23 },
+  quickHeader: {
+    alignItems: "baseline",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  quickTitle: { fontSize: 17, fontWeight: "900", letterSpacing: -0.4 },
+  quickHint: { fontSize: 9, fontWeight: "600" },
+  quickGrid: { flexDirection: "row", flexWrap: "wrap", rowGap: 17 },
+  quickItem: { alignItems: "center", width: "20%" },
+  quickIcon: {
+    alignItems: "center",
+    borderRadius: 19,
+    borderWidth: 1,
+    height: 56,
     justifyContent: "center",
+    width: 56,
+    boxShadow: "0 7px 16px rgba(55,23,11,0.06)",
   },
-  captureCopy: { flex: 1, marginLeft: 12 },
-  captureTitle: { fontSize: 15, fontWeight: "800" },
-  captureText: { fontSize: 10, lineHeight: 15, marginTop: 3 },
-  captureAction: {
-    width: 36,
-    height: 36,
+  quickIconInner: {
+    alignItems: "center",
     borderRadius: 14,
-    alignItems: "center",
+    height: 38,
     justifyContent: "center",
+    width: 38,
+  },
+  quickLabel: {
+    fontSize: 9,
+    fontWeight: "800",
+    marginTop: 7,
+    maxWidth: 64,
+    textAlign: "center",
   },
   sectionHeader: {
     flexDirection: "row",
@@ -668,53 +1101,164 @@ const s = StyleSheet.create({
   sectionTitle: { fontSize: 20, fontWeight: "900", letterSpacing: -0.55 },
   sectionMeta: { fontSize: 10, marginTop: 3 },
   seeAll: { fontSize: 11, fontWeight: "800" },
-  pulseRow: { gap: 11, paddingRight: 8 },
-  pulseCard: {
-    width: 258,
-    minHeight: 128,
+  healthOpen: {
+    alignItems: "center",
+    borderRadius: 14,
+    flexDirection: "row",
+    gap: 4,
+    height: 34,
+    justifyContent: "center",
+    width: 42,
+  },
+  glanceList: { borderRadius: 22, borderWidth: 1, overflow: "hidden" },
+  glanceRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 11,
+    minHeight: 67,
+    paddingHorizontal: 13,
+  },
+  glanceIcon: {
+    alignItems: "center",
+    borderRadius: 13,
+    height: 34,
+    justifyContent: "center",
+    width: 34,
+  },
+  glanceCopy: { flex: 1 },
+  glanceLabel: { fontSize: 13, fontWeight: "800" },
+  glanceDetail: { fontSize: 9, marginTop: 3 },
+  glanceValue: {
+    fontSize: 11,
+    fontWeight: "900",
+    maxWidth: 82,
+    textAlign: "right",
+  },
+  healthHero: { height: 258, borderRadius: 28, overflow: "hidden" },
+  healthHeroImage: { borderRadius: 28 },
+  healthHeroShade: {
+    backgroundColor: "rgba(25, 16, 11, 0.37)",
+    flex: 1,
+    justifyContent: "space-between",
+    padding: 17,
+  },
+  healthHeroCopy: { alignSelf: "flex-start", maxWidth: "70%" },
+  healthHeroEyebrow: { alignItems: "center", flexDirection: "row", gap: 6 },
+  healthHeroEyebrowText: {
+    color: "rgba(255,255,255,0.82)",
+    fontSize: 8,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+  healthHeroTitle: {
+    color: "#FFFFFF",
+    fontSize: 23,
+    fontWeight: "900",
+    letterSpacing: -0.8,
+    lineHeight: 27,
+    marginTop: 9,
+  },
+  healthHeroSubtitle: {
+    color: "rgba(255,255,255,0.82)",
+    fontSize: 10,
+    lineHeight: 15,
+    marginTop: 5,
+  },
+  healthMetrics: { flexDirection: "row", gap: 7 },
+  healthCard: {
+    backgroundColor: "rgba(22, 15, 12, 0.61)",
+    borderColor: "rgba(255,255,255,0.18)",
+    borderRadius: 15,
     borderWidth: 1,
-    borderRadius: 26,
-    padding: 15,
-    boxShadow: "0 8px 24px rgba(55,23,11,0.05)",
+    flex: 1,
+    minWidth: 0,
+    padding: 10,
   },
-  pulseTop: { flexDirection: "row", alignItems: "center" },
-  pulseIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
+  healthLabel: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 8,
+    fontWeight: "800",
   },
-  pulseLabel: { flex: 1, fontSize: 10, fontWeight: "700", marginLeft: 9 },
-  pulseArrow: {
-    width: 27,
-    height: 27,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pulseValue: {
-    fontSize: 22,
+  healthValue: {
+    color: "#FFFFFF",
+    fontSize: 15,
     fontWeight: "900",
     letterSpacing: -0.5,
-    marginTop: 13,
+    marginTop: 4,
   },
-  pulseDetail: { fontSize: 9, marginTop: 4 },
-  healthRow: { gap: 11, paddingRight: 8 },
-  healthCard: {
-    width: 176,
-    minHeight: 142,
+  healthDetail: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 7,
+    fontWeight: "700",
+    marginTop: 4,
+  },
+  momentumHero: { height: 218, borderRadius: 27, overflow: "hidden" },
+  momentumImage: { borderRadius: 27 },
+  momentumShade: {
+    backgroundColor: "rgba(27, 14, 8, 0.38)",
+    flex: 1,
+    justifyContent: "space-between",
+    padding: 17,
+  },
+  momentumEyebrow: {
+    color: "rgba(255,255,255,0.77)",
+    fontSize: 8,
+    fontWeight: "900",
+    letterSpacing: 1.1,
+  },
+  momentumTitle: {
+    color: "#FFFFFF",
+    fontSize: 22,
+    fontWeight: "900",
+    letterSpacing: -0.8,
+    marginTop: -34,
+  },
+  momentumActions: { flexDirection: "row", gap: 7 },
+  momentumAction: {
+    alignItems: "center",
+    backgroundColor: "rgba(22, 14, 10, 0.62)",
+    borderColor: "rgba(255,255,255,0.17)",
+    borderRadius: 13,
     borderWidth: 1,
-    borderRadius: 24,
-    padding: 14,
+    flex: 1,
+    gap: 4,
+    minWidth: 0,
+    paddingVertical: 9,
   },
-  healthCardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  healthIcon: { width: 34, height: 34, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  healthLabel: { fontSize: 8, fontWeight: "800", marginTop: 13 },
-  healthValue: { fontSize: 21, fontWeight: "900", letterSpacing: -0.6, marginTop: 4 },
-  healthDetail: { fontSize: 8, fontWeight: "700", marginTop: 5 },
+  momentumActionLabel: { color: "#FFFFFF", fontSize: 9, fontWeight: "900" },
   countPill: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 99 },
   countText: { fontSize: 8, fontWeight: "900", letterSpacing: 0.8 },
+  attentionList: { borderRadius: 24, borderWidth: 1, overflow: "hidden" },
+  attentionRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 11,
+    minHeight: 70,
+    paddingHorizontal: 13,
+  },
+  attentionEmpty: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 11,
+    minHeight: 72,
+    paddingHorizontal: 13,
+  },
+  attentionIcon: {
+    alignItems: "center",
+    borderRadius: 13,
+    height: 34,
+    justifyContent: "center",
+    width: 34,
+  },
+  attentionCopy: { flex: 1 },
+  attentionTitle: { fontSize: 13, fontWeight: "800" },
+  attentionDetail: { fontSize: 9, marginTop: 3 },
+  attentionAction: {
+    borderRadius: 9,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  attentionActionText: { fontSize: 8, fontWeight: "900" },
   list: { borderWidth: 1, borderRadius: 25, paddingHorizontal: 14 },
   focusRow: {
     minHeight: 67,
@@ -763,6 +1307,32 @@ const s = StyleSheet.create({
   upcomingCopy: { flex: 1, marginLeft: 12 },
   upcomingLabel: { fontSize: 8, fontWeight: "800", letterSpacing: 0.9 },
   upcomingTitle: { fontSize: 13, fontWeight: "800", marginTop: 3 },
+  upcomingDetail: { fontSize: 9, marginTop: 3 },
+  upcomingEmpty: {
+    alignItems: "center",
+    borderRadius: 20,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 9,
+    minHeight: 56,
+    paddingHorizontal: 15,
+  },
+  upcomingEmptyText: { fontSize: 10, fontWeight: "700" },
+  appFooter: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 7,
+    justifyContent: "center",
+    marginTop: 28,
+  },
+  footerMark: {
+    alignItems: "center",
+    borderRadius: 9,
+    height: 20,
+    justifyContent: "center",
+    width: 20,
+  },
+  footerText: { fontSize: 9, fontWeight: "700" },
   skeletonRoot: { paddingTop: 4 },
   skeletonGreeting: { width: "68%", height: 34, borderRadius: 13 },
   skeletonSubtitle: {
@@ -778,7 +1348,12 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  skeletonCapture: { height: 76, borderRadius: 24, marginTop: 14 },
+  skeletonQuickRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 25,
+  },
+  skeletonQuick: { borderRadius: 18, height: 58, width: 58 },
   skeletonSectionRow: {
     flexDirection: "row",
     justifyContent: "space-between",

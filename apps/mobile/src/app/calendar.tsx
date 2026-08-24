@@ -1,22 +1,32 @@
+import { router } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   DeviceEventEmitter,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/app-header";
-import { CompactNavDock } from "@/components/compact-nav-dock";
 import { CosmicBackground } from "@/components/cosmic-background";
 import { KasaSpinner } from "@/components/kasa-spinner";
 import { useTheme } from "@/hooks/use-theme";
-import { getCalendar, type CalendarItem } from "@/lib/automation";
+import {
+  getCalendar,
+  saveDeviceBirthdays,
+  type CalendarItem,
+} from "@/lib/automation";
+import {
+  getDeviceBirthdays,
+  scheduleCalendarGreetings,
+} from "@/lib/calendar-signals";
 
 const color = {
   EVENT: "#FF6338",
@@ -24,6 +34,8 @@ const color = {
   EXPIRY: "#E75161",
   MOMENT: "#20A06A",
   MONEY: "#E9A521",
+  FESTIVAL: "#A55EEA",
+  BIRTHDAY: "#E75161",
 } as const;
 const typeLabel = {
   EVENT: "PLAN",
@@ -31,17 +43,24 @@ const typeLabel = {
   EXPIRY: "EXPIRY",
   MOMENT: "MEMORY",
   MONEY: "MONEY",
+  FESTIVAL: "FESTIVAL",
+  BIRTHDAY: "BIRTHDAY",
 } as const;
 const dateKey = (value: Date | string) => {
   const date = typeof value === "string" ? new Date(value) : value;
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 };
 
-export default function CalendarScreen({
-  compactNavigation = true,
-}: {
-  compactNavigation?: boolean;
-}) {
+function getDeviceBirthdaysWithTimeout(month: Date) {
+  return Promise.race([
+    getDeviceBirthdays(month),
+    new Promise<{ items: CalendarItem[]; allowed: boolean }>((resolve) => {
+      setTimeout(() => resolve({ items: [], allowed: false }), 8_000);
+    }),
+  ]);
+}
+
+export default function CalendarScreen() {
   const c = useTheme();
   const insets = useSafeAreaInsets();
   const [month, setMonth] = useState(
@@ -49,15 +68,27 @@ export default function CalendarScreen({
   );
   const [selected, setSelected] = useState(dateKey(new Date()));
   const [items, setItems] = useState<CalendarItem[]>([]);
+  const [birthdays, setBirthdays] = useState<CalendarItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncingBirthdays, setSyncingBirthdays] = useState(false);
   useEffect(() => {
     let active = true;
-    getCalendar(month)
-      .then((data) => {
-        if (active) setItems(data.items);
-      })
-      .catch(() => {
-        if (active) setItems([]);
+    // iOS Calendar can occasionally stall while its database wakes up. The
+    // KASA calendar must remain usable even if the device-calendar lookup is
+    // delayed or unavailable.
+    Promise.allSettled([
+      getCalendar(month),
+      getDeviceBirthdaysWithTimeout(month),
+    ])
+      .then(([calendar, device]) => {
+        if (!active) return;
+        const items =
+          calendar.status === "fulfilled" ? calendar.value.items : [];
+        const birthdays =
+          device.status === "fulfilled" ? device.value.items : [];
+        setItems(items);
+        setBirthdays(birthdays);
+        void scheduleCalendarGreetings([...items, ...birthdays]);
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -87,8 +118,42 @@ export default function CalendarScreen({
       return day;
     });
   }, [month]);
-  const daily = items.filter((item) => dateKey(item.date) === selected);
+  const visibleItems = [...items, ...birthdays];
+  const daily = visibleItems.filter((item) => dateKey(item.date) === selected);
   const today = dateKey(new Date());
+  async function syncBirthdaysAndGreetings() {
+    setSyncingBirthdays(true);
+    try {
+      const device = await getDeviceBirthdays(month, true);
+      if (!device.allowed) {
+        Alert.alert(
+          "Calendar access needed",
+          "Allow Calendar access in Settings to show birthdays from your device.",
+        );
+        return;
+      }
+      setBirthdays(device.items);
+      await saveDeviceBirthdays(month, device.items);
+      const saved = await getCalendar(month);
+      setItems(saved.items);
+      setBirthdays([]);
+      const remindersReady = await scheduleCalendarGreetings(
+        [...saved.items, ...device.items],
+        true,
+      ).catch(() => false);
+      Alert.alert(
+        "Dates are ready",
+        `${device.items.length} birthday${device.items.length === 1 ? "" : "s"} saved to KASA.${remindersReady ? " Upcoming greetings are scheduled." : " Enable Notifications to schedule greetings."}`,
+      );
+    } catch (error) {
+      Alert.alert(
+        "Could not sync birthdays",
+        error instanceof Error ? error.message : "Try again.",
+      );
+    } finally {
+      setSyncingBirthdays(false);
+    }
+  }
   return (
     <View style={[s.screen, { backgroundColor: c.background }]}>
       <CosmicBackground />
@@ -97,13 +162,11 @@ export default function CalendarScreen({
           contentContainerStyle={[
             s.content,
             {
-              paddingBottom: compactNavigation
-                ? Math.max(insets.bottom + 128, 148)
-                : 48,
+              paddingBottom: Math.max(insets.bottom + 34, 48),
             },
           ]}
           showsVerticalScrollIndicator={false}
-          stickyHeaderIndices={[7]}
+          stickyHeaderIndices={[9]}
         >
           <AppHeader label="Calendar" />
           <Text style={[s.kicker, { color: c.brand }]}>
@@ -174,7 +237,7 @@ export default function CalendarScreen({
             <View style={s.grid}>
               {days.map((day) => {
                 const key = dateKey(day);
-                const events = items.filter(
+                const events = visibleItems.filter(
                   (item) => dateKey(item.date) === key,
                 );
                 const selectedDay = key === selected;
@@ -231,6 +294,27 @@ export default function CalendarScreen({
               </View>
             ))}
           </View>
+          <Pressable
+            disabled={syncingBirthdays}
+            onPress={() => void syncBirthdaysAndGreetings()}
+            style={[
+              s.birthdaySync,
+              { backgroundColor: c.surface, borderColor: c.border },
+            ]}
+          >
+            <SymbolView name="gift.fill" size={16} tintColor={c.brand} />
+            <View style={s.birthdayCopy}>
+              <Text style={[s.birthdayTitle, { color: c.text }]}>
+                {syncingBirthdays
+                  ? "Syncing dates…"
+                  : "Sync birthdays & greetings"}
+              </Text>
+              <Text style={[s.birthdayDetail, { color: c.textSecondary }]}>
+                Birthdays stay on your device. Festival reminders are automatic.
+              </Text>
+            </View>
+            {syncingBirthdays ? <KasaSpinner size={16} /> : null}
+          </Pressable>
           <View
             style={[
               s.dayHeading,
@@ -251,10 +335,25 @@ export default function CalendarScreen({
                 }).format(new Date(`${selected}T12:00:00`))}
               </Text>
             </View>
-            <View style={[s.count, { backgroundColor: c.brandSoft }]}>
-              <Text style={[s.countText, { color: c.brand }]}>
-                {daily.length}
-              </Text>
+            <View style={s.dayActions}>
+              <View style={[s.count, { backgroundColor: c.brandSoft }]}>
+                <Text style={[s.countText, { color: c.brand }]}>
+                  {daily.length}
+                </Text>
+              </View>
+              <Pressable
+                accessibilityLabel={`Add event on ${selected}`}
+                onPress={() =>
+                  router.push({
+                    pathname: "/calendar-new",
+                    params: { date: selected },
+                  })
+                }
+                hitSlop={8}
+                style={[s.addForDay, { backgroundColor: c.brand }]}
+              >
+                <SymbolView name="plus" size={15} tintColor="#FFFFFF" />
+              </Pressable>
             </View>
           </View>
           {loading ? (
@@ -296,6 +395,21 @@ export default function CalendarScreen({
                         {item.detail}
                       </Text>
                     ) : null}
+                    {item.meetingUrl ? (
+                      <Pressable
+                        onPress={() => void Linking.openURL(item.meetingUrl!)}
+                        style={[s.join, { backgroundColor: c.brandSoft }]}
+                      >
+                        <SymbolView
+                          name="video.fill"
+                          size={13}
+                          tintColor={c.brand}
+                        />
+                        <Text style={[s.joinText, { color: c.brand }]}>
+                          Join meeting
+                        </Text>
+                      </Pressable>
+                    ) : null}
                   </View>
                 </View>
               ))}
@@ -318,7 +432,6 @@ export default function CalendarScreen({
           )}
         </ScrollView>
       </SafeAreaView>
-      {compactNavigation ? <CompactNavDock /> : null}
     </View>
   );
 }
@@ -383,6 +496,18 @@ const s = StyleSheet.create({
   legendItem: { alignItems: "center", flexDirection: "row", gap: 4 },
   legendDot: { borderRadius: 3, height: 6, width: 6 },
   legendText: { fontSize: 9, fontWeight: "800" },
+  birthdaySync: {
+    alignItems: "center",
+    borderRadius: 18,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 15,
+    padding: 13,
+  },
+  birthdayCopy: { flex: 1 },
+  birthdayTitle: { fontSize: 11, fontWeight: "900" },
+  birthdayDetail: { fontSize: 9, lineHeight: 13, marginTop: 2 },
   dayHeading: {
     alignItems: "center",
     alignSelf: "stretch",
@@ -408,6 +533,14 @@ const s = StyleSheet.create({
     width: 34,
   },
   countText: { fontSize: 14, fontWeight: "900" },
+  dayActions: { alignItems: "center", flexDirection: "row", gap: 8 },
+  addForDay: {
+    alignItems: "center",
+    borderRadius: 14,
+    height: 34,
+    justifyContent: "center",
+    width: 34,
+  },
   loading: { alignItems: "center", height: 145, justifyContent: "center" },
   events: { gap: 10, marginTop: 15 },
   event: {
@@ -423,6 +556,17 @@ const s = StyleSheet.create({
   eventTime: { fontSize: 11, fontWeight: "700" },
   eventTitle: { fontSize: 15, fontWeight: "900", marginTop: 6 },
   eventDetail: { fontSize: 12, lineHeight: 18, marginTop: 4 },
+  join: {
+    alignSelf: "flex-start",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginTop: 10,
+    flexDirection: "row",
+    gap: 5,
+    alignItems: "center",
+  },
+  joinText: { fontSize: 10, fontWeight: "900" },
   empty: {
     alignItems: "center",
     borderRadius: 22,

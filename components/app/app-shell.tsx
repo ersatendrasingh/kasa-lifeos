@@ -239,13 +239,16 @@ export function AppShell({ children, user }: AppShellProps) {
               </Button>
               <ThemeToggle />
               <Button
+                asChild
                 variant="ghost"
                 size="icon"
                 className="relative"
                 aria-label="Notifications"
               >
-                <Bell />
-                <span className="bg-brand absolute top-2.5 right-2.5 size-1.5 rounded-full" />
+                <Link href="/app/notifications">
+                  <Bell />
+                  <span className="bg-brand absolute top-2.5 right-2.5 size-1.5 rounded-full" />
+                </Link>
               </Button>
               <Avatar className="bg-brand-soft ml-1">
                 {user.image ? <AvatarImage src={user.image} alt="" /> : null}
