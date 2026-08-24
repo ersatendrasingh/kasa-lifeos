@@ -44,3 +44,12 @@ export async function PATCH(request: Request, context: RouteContext<"/api/people
   if (!updated.count) return Response.json({ error: "Person not found" }, { status: 404 });
   return Response.json({ person: await db.person.findFirst({ where: { id: personId, userId: id } }) });
 }
+
+export async function DELETE(request: Request, context: RouteContext<"/api/people/[id]">) {
+  const id = await userId(request);
+  if (!id) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const { id: personId } = await context.params;
+  const removed = await db.person.deleteMany({ where: { id: personId, userId: id } });
+  if (!removed.count) return Response.json({ error: "Person not found" }, { status: 404 });
+  return Response.json({ success: true });
+}
