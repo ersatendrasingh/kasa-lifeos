@@ -79,3 +79,10 @@ export async function getPersonKhata(personId: string) {
     throw new Error(result.error?.message || "Khata is unavailable");
   return result.data;
 }
+
+export async function sendKhataReminder(personId: string) {
+  const result = await apiFetch(`/api/money/${personId}`, {
+    method: "POST",
+  });
+  if (result.error) throw new Error(result.error.message);
+}

@@ -93,8 +93,7 @@ export default function NotificationCenterScreen() {
       setItems(
         [...result.notifications].sort(
           (a, b) =>
-            new Date(b.createdAt).getTime() -
-            new Date(a.createdAt).getTime(),
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
         ),
       );
       setUnreadCount(result.unreadCount);
@@ -186,6 +185,13 @@ export default function NotificationCenterScreen() {
         </Pressable>
       </View>
     );
+  }
+
+  function openNotification(item: KasaNotification) {
+    void toggleRead(item);
+    const path = (item.metadata as { path?: unknown } | null)?.path;
+    if (typeof path === "string" && path.startsWith("/"))
+      router.push(path as never);
   }
 
   async function markAllRead() {
@@ -402,8 +408,8 @@ export default function NotificationCenterScreen() {
                         rightThreshold={54}
                       >
                         <Pressable
-                          accessibilityHint="Marks this notification read or unread"
-                          onPress={() => void toggleRead(item)}
+                          accessibilityHint="Opens the linked KASA item and marks this notification read"
+                          onPress={() => openNotification(item)}
                           style={[
                             s.row,
                             { backgroundColor: c.surface },

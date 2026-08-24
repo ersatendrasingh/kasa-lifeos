@@ -20,9 +20,169 @@ const ledgerSchema = z.object({
   occurredAt: z.coerce.date().optional(),
 });
 const schema = z.union([transactionSchema, ledgerSchema]);
+const reverseDirection = {
+  LENT: "BORROWED",
+  BORROWED: "LENT",
+  RECEIVED: "PAID",
+  PAID: "RECEIVED",
+} as const;
+const directionCopy = {
+  LENT: "gave",
+  BORROWED: "received",
+  RECEIVED: "received repayment from",
+  PAID: "repaid",
+} as const;
+const cleanPhone = (value?: string | null) =>
+  (value || "").replace(/\D/g, "").slice(-10);
+const profilePhone = (value: unknown) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "";
+  const phone = (value as { phone?: unknown }).phone;
+  return typeof phone === "string" ? cleanPhone(phone) : "";
+};
 async function userId(request: Request) {
   const session = await auth.api.getSession({ headers: request.headers });
   return session?.user.id ?? null;
+}
+
+async function recordLedgerEverywhere(input: {
+  userId: string;
+  person: { id: string; name: string; phone: string | null };
+  direction: keyof typeof reverseDirection;
+  amount: number;
+  note?: string;
+  occurredAt: Date;
+}) {
+  const entry = await db.ledgerEntry.create({
+    data: {
+      userId: input.userId,
+      personId: input.person.id,
+      direction: input.direction,
+      amount: input.amount,
+      note: input.note || null,
+      occurredAt: input.occurredAt,
+    },
+  });
+  const title = `Money ${directionCopy[input.direction]} ${input.person.name}`;
+  const summary = `₹${input.amount.toLocaleString("en-IN")} · ${input.note || "Khata entry"}`;
+  await Promise.all([
+    db.timelineEvent.create({
+      data: {
+        userId: input.userId,
+        type: "FINANCE",
+        title,
+        summary,
+        occurredAt: input.occurredAt,
+        sourceType: "MONEY_LEDGER",
+        sourceId: entry.id,
+        metadata: {
+          personId: input.person.id,
+          amount: input.amount,
+          direction: input.direction,
+        },
+      },
+    }),
+    db.calendarEvent.create({
+      data: {
+        userId: input.userId,
+        sourceEventId: entry.id,
+        title,
+        notes: summary,
+        startsAt: input.occurredAt,
+        allDay: false,
+        budgetAmount: input.amount,
+        currency: "INR",
+      },
+    }),
+    db.personMemory.create({
+      data: {
+        userId: input.userId,
+        personId: input.person.id,
+        kind: "MONEY",
+        title,
+        detail: summary,
+        occurredAt: input.occurredAt,
+        sourceType: "MONEY_LEDGER",
+        sourceId: entry.id,
+      },
+    }),
+  ]);
+  return entry;
+}
+
+async function mirrorToKasaContact(input: {
+  senderId: string;
+  senderName: string;
+  senderPhone: string;
+  person: { name: string; phone: string | null };
+  direction: keyof typeof reverseDirection;
+  amount: number;
+  note?: string;
+  occurredAt: Date;
+}) {
+  const phone = cleanPhone(input.person.phone);
+  if (!phone) return;
+  const profiles = await db.userProfile.findMany({
+    select: { userId: true, preferences: true },
+  });
+  const recipient = profiles.find(
+    (profile) =>
+      profile.userId !== input.senderId &&
+      profilePhone(profile.preferences) === phone,
+  );
+  if (!recipient) return;
+  const existing = await db.person.findFirst({
+    where: {
+      userId: recipient.userId,
+      OR: [
+        { phone: input.senderPhone || "__none__" },
+        { name: input.senderName },
+      ],
+    },
+  });
+  const recipientPerson =
+    existing ||
+    (await db.person.create({
+      data: {
+        userId: recipient.userId,
+        name: input.senderName,
+        phone: input.senderPhone || null,
+        category: "OTHER",
+        tags: ["KASA khata"],
+      },
+    }));
+  const mirroredDirection = reverseDirection[input.direction];
+  const mirrored = await recordLedgerEverywhere({
+    userId: recipient.userId,
+    person: recipientPerson,
+    direction: mirroredDirection,
+    amount: input.amount,
+    note: input.note,
+    occurredAt: input.occurredAt,
+  });
+  const action =
+    input.direction === "LENT"
+      ? "gave you"
+      : input.direction === "BORROWED"
+        ? "recorded money you gave them"
+        : input.direction === "RECEIVED"
+          ? "recorded your repayment"
+          : "recorded their repayment to you";
+  await db.notification.create({
+    data: {
+      userId: recipient.userId,
+      channel: "PUSH",
+      title: "Khata updated",
+      body: `${input.senderName} ${action} ₹${input.amount.toLocaleString("en-IN")}.`,
+      scheduledAt: new Date(),
+      metadata: {
+        category: "FINANCE",
+        kind: "KHATA_ENTRY",
+        personId: recipientPerson.id,
+        ledgerEntryId: mirrored.id,
+        path: `/money/${recipientPerson.id}`,
+      },
+    },
+  });
 }
 
 export async function GET(request: Request) {
@@ -128,16 +288,37 @@ export async function POST(request: Request) {
     });
     if (!person)
       return Response.json({ error: "Contact not found" }, { status: 404 });
-    await db.ledgerEntry.create({
-      data: {
-        userId: id,
-        personId: value.personId,
-        direction: value.direction,
-        amount: value.amount,
-        note: value.note || null,
-        occurredAt: value.occurredAt ?? new Date(),
-      },
+    const occurredAt = value.occurredAt ?? new Date();
+    await recordLedgerEverywhere({
+      userId: id,
+      person,
+      direction: value.direction,
+      amount: value.amount,
+      note: value.note,
+      occurredAt,
     });
+    // Peer sync is best-effort: recording your own Khata should never fail
+    // because the other person has not joined KASA or lacks a profile phone.
+    await (async () => {
+      try {
+        const sender = await db.user.findUnique({
+          where: { id },
+          select: { name: true, profile: { select: { preferences: true } } },
+        });
+        await mirrorToKasaContact({
+          senderId: id,
+          senderName: sender?.name || "Someone",
+          senderPhone: profilePhone(sender?.profile?.preferences),
+          person,
+          direction: value.direction,
+          amount: value.amount,
+          note: value.note,
+          occurredAt,
+        });
+      } catch {
+        // The in-app record is already saved; retry is safe on a later entry.
+      }
+    })();
   } else
     await db.moneyTransaction.create({
       data: {

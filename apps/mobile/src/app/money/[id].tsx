@@ -22,6 +22,7 @@ import { useTheme } from "@/hooks/use-theme";
 import {
   createLedgerEntry,
   getPersonKhata,
+  sendKhataReminder,
   type LedgerDirection,
   type LedgerEntry,
   type PersonKhata,
@@ -190,6 +191,31 @@ export default function PersonKhataScreen() {
       );
     }
   }
+  function showMoneyActions() {
+    Alert.alert("Khata actions", undefined, [
+      { text: "Open WhatsApp", onPress: () => void openWhatsApp() },
+      {
+        text: "Send KASA reminder",
+        onPress: async () => {
+          try {
+            await sendKhataReminder(id);
+            Alert.alert(
+              "Reminder sent",
+              `${data?.person.name || "They"} will see it in KASA notifications.`,
+            );
+          } catch (cause) {
+            Alert.alert(
+              "Could not send reminder",
+              cause instanceof Error
+                ? cause.message
+                : "This contact may not be on KASA yet.",
+            );
+          }
+        },
+      },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  }
 
   return (
     <View style={[s.screen, { backgroundColor: c.background }]}>
@@ -209,7 +235,7 @@ export default function PersonKhataScreen() {
             PERSONAL KHATA
           </Text>
           <Pressable
-            onPress={() => void openWhatsApp()}
+            onPress={showMoneyActions}
             style={[s.whatsApp, { backgroundColor: "#25D366" }]}
           >
             <SymbolView name="message.fill" size={15} tintColor="#fff" />

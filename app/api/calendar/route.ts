@@ -58,7 +58,12 @@ export async function GET(request: Request) {
       select: { id: true, title: true, categorySlug: true, expiresAt: true },
     }),
     db.timelineEvent.findMany({
-      where: { userId, hiddenAt: null, occurredAt: { gte: from, lt: to } },
+      where: {
+        userId,
+        hiddenAt: null,
+        sourceType: { not: "MONEY_LEDGER" },
+        occurredAt: { gte: from, lt: to },
+      },
       orderBy: { occurredAt: "asc" },
       select: {
         id: true,
