@@ -311,35 +311,6 @@ export default function MoneyScreen() {
           </View>
           {tab === "khata" ? (
             <>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={s.actionRow}
-              >
-                {ledgerActions.map((action) => (
-                  <Pressable
-                    key={action.direction}
-                    onPress={() => openLedger(action.direction)}
-                    style={[
-                      s.quickAction,
-                      { backgroundColor: c.surface, borderColor: c.border },
-                    ]}
-                  >
-                    <View
-                      style={[s.quickIcon, { backgroundColor: c.brandSoft }]}
-                    >
-                      <SymbolView
-                        name={action.icon}
-                        size={15}
-                        tintColor={c.brand}
-                      />
-                    </View>
-                    <Text style={[s.quickLabel, { color: c.text }]}>
-                      {action.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
               <View
                 style={[
                   s.search,
@@ -379,12 +350,17 @@ export default function MoneyScreen() {
                     border={c.border}
                     text={c.text}
                     muted={c.textSecondary}
-                    onOpen={() => openLedger("LENT", person)}
+                    onOpen={() =>
+                      router.push({
+                        pathname: "/money/[id]",
+                        params: { id: person.id },
+                      })
+                    }
                     onSettle={() =>
-                      openLedger(
-                        person.balance > 0 ? "RECEIVED" : "PAID",
-                        person,
-                      )
+                      router.push({
+                        pathname: "/money/[id]",
+                        params: { id: person.id },
+                      })
                     }
                   />
                 ))

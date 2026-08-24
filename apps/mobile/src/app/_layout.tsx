@@ -111,6 +111,10 @@ export default function RootLayout() {
             options={{ animation: "slide_from_right" }}
           />
           <Stack.Screen
+            name="money/[id]"
+            options={{ animation: "slide_from_right" }}
+          />
+          <Stack.Screen
             name="growth"
             options={{ animation: "slide_from_right" }}
           />

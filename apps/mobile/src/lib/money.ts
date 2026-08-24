@@ -70,3 +70,12 @@ export function createMoneyTransaction(input: {
     ...input,
   });
 }
+
+export type PersonKhata = { person: MoneyPerson; entries: LedgerEntry[] };
+
+export async function getPersonKhata(personId: string) {
+  const result = await apiFetch<PersonKhata>(`/api/money/${personId}`);
+  if (!result.data)
+    throw new Error(result.error?.message || "Khata is unavailable");
+  return result.data;
+}
