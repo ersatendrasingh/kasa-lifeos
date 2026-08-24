@@ -307,19 +307,29 @@ export default function LearningScreen() {
       </SafeAreaView>
       <Modal
         visible={!!selected}
-        transparent
         animationType="slide"
+        presentationStyle="fullScreen"
         onRequestClose={() => setSelected(null)}
       >
-        <View style={s.modal}>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={() => !busy && setSelected(null)}
-          />
-          <View style={[s.sheet, { backgroundColor: c.background }]}>
+        <View style={[s.modal, { backgroundColor: c.background }]}>
+          <View
+            style={[s.sheet, s.fullSheet, { backgroundColor: c.background }]}
+          >
             {selected && (
               <>
-                <View style={[s.handle, { backgroundColor: c.border }]} />
+                <Pressable
+                  onPress={() => setSelected(null)}
+                  style={[
+                    s.back,
+                    { backgroundColor: c.surface, borderColor: c.border },
+                  ]}
+                >
+                  <SymbolView
+                    name="chevron.left"
+                    size={17}
+                    tintColor={c.text}
+                  />
+                </Pressable>
                 <Text style={[s.trackType, { color: c.brand }]}>
                   {nice(selected.type)}
                 </Text>
@@ -417,20 +427,26 @@ export default function LearningScreen() {
       </Modal>
       <Modal
         visible={create}
-        transparent
         animationType="slide"
+        presentationStyle="fullScreen"
         onRequestClose={() => setCreate(false)}
       >
-        <View style={s.modal}>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={() => !busy && setCreate(false)}
-          />
+        <View style={[s.modal, { backgroundColor: c.background }]}>
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : undefined}
           >
-            <View style={[s.sheet, { backgroundColor: c.background }]}>
-              <View style={[s.handle, { backgroundColor: c.border }]} />
+            <View
+              style={[s.sheet, s.fullSheet, { backgroundColor: c.background }]}
+            >
+              <Pressable
+                onPress={() => setCreate(false)}
+                style={[
+                  s.back,
+                  { backgroundColor: c.surface, borderColor: c.border },
+                ]}
+              >
+                <SymbolView name="chevron.left" size={17} tintColor={c.text} />
+              </Pressable>
               <Text style={[s.sheetTitle, { color: c.text }]}>
                 Add a learning track
               </Text>
@@ -639,8 +655,6 @@ const s = StyleSheet.create({
   emptyAction: { fontSize: 10, fontWeight: "900", marginTop: 17 },
   modal: {
     flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(11,6,3,.58)",
   },
   sheet: {
     minHeight: "55%",
@@ -649,6 +663,23 @@ const s = StyleSheet.create({
     borderTopRightRadius: 32,
     padding: 20,
     paddingBottom: 30,
+  },
+  fullSheet: {
+    flex: 1,
+    maxHeight: undefined,
+    minHeight: undefined,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+    paddingTop: 62,
+  },
+  back: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 22,
   },
   handle: {
     width: 42,
