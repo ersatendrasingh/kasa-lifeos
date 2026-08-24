@@ -33,6 +33,7 @@ const types: LearningTrack["type"][] = [
   "PRACTICE",
   "CERTIFICATION",
 ];
+const studio = "#5067F5";
 const nice = (value: string) => value[0] + value.slice(1).toLowerCase();
 const progress = (track: LearningTrack) =>
   track.lessons.length
@@ -151,13 +152,13 @@ export default function LearningScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => void load(true)}
-              tintColor={c.brand}
+              tintColor={studio}
             />
           }
           showsVerticalScrollIndicator={false}
         >
           <AppHeader label="Learning" />
-          <Text style={[s.kicker, { color: c.brand }]}>LEARNING STUDIO</Text>
+          <Text style={[s.kicker, { color: studio }]}>LEARNING STUDIO</Text>
           <Text style={[s.title, { color: c.text }]}>
             Build knowledge that stays.
           </Text>
@@ -185,12 +186,12 @@ export default function LearningScreen() {
                   : "Add a track to set your rhythm"}
               </Text>
             </View>
-            <View style={[s.ring, { borderColor: c.brand }]} />
+            <View style={[s.ring, { borderColor: studio }]} />
           </View>
           {focus && (
             <Pressable
               onPress={() => setSelected(focus)}
-              style={[s.focus, { backgroundColor: c.brand }]}
+              style={[s.focus, { backgroundColor: studio }]}
             >
               <Text style={s.focusKicker}>CONTINUE LEARNING</Text>
               <Text style={s.focusTitle}>{focus.title}</Text>
@@ -211,15 +212,15 @@ export default function LearningScreen() {
                   style={s.studyButton}
                 >
                   {busy ? (
-                    <KasaSpinner size={16} color={c.brand} />
+                    <KasaSpinner size={16} color={studio} />
                   ) : (
                     <>
                       <SymbolView
                         name="play.fill"
                         size={13}
-                        tintColor={c.brand}
+                        tintColor={studio}
                       />
-                      <Text style={[s.studyText, { color: c.brand }]}>
+                      <Text style={[s.studyText, { color: studio }]}>
                         Study 25 min
                       </Text>
                     </>
@@ -232,7 +233,7 @@ export default function LearningScreen() {
           <View style={s.sectionHead}>
             <Text style={[s.heading, { color: c.text }]}>Your tracks</Text>
             <Pressable onPress={() => setCreate(true)}>
-              <Text style={[s.add, { color: c.brand }]}>+ ADD TRACK</Text>
+              <Text style={[s.add, { color: studio }]}>+ ADD TRACK</Text>
             </Pressable>
           </View>
           {loading ? (
@@ -250,7 +251,7 @@ export default function LearningScreen() {
                 ]}
               >
                 <View style={s.trackTop}>
-                  <Text style={[s.trackType, { color: c.brand }]}>
+                  <Text style={[s.trackType, { color: studio }]}>
                     {nice(track.type)}
                   </Text>
                   <Text style={[s.trackPercent, { color: c.text }]}>
@@ -269,7 +270,7 @@ export default function LearningScreen() {
                     style={[
                       s.fill,
                       {
-                        backgroundColor: c.brand,
+                        backgroundColor: studio,
                         width: `${progress(track)}%`,
                       },
                     ]}
@@ -287,7 +288,7 @@ export default function LearningScreen() {
               <SymbolView
                 name="graduationcap.fill"
                 size={30}
-                tintColor={c.brand}
+                tintColor={studio}
               />
               <Text style={[s.emptyTitle, { color: c.text }]}>
                 Start your first track
@@ -297,7 +298,7 @@ export default function LearningScreen() {
                 it gets lost.
               </Text>
               <Pressable onPress={() => setCreate(true)}>
-                <Text style={[s.emptyAction, { color: c.brand }]}>
+                <Text style={[s.emptyAction, { color: studio }]}>
                   Create a track →
                 </Text>
               </Pressable>
@@ -312,7 +313,9 @@ export default function LearningScreen() {
         onRequestClose={() => setSelected(null)}
       >
         <View style={[s.modal, { backgroundColor: c.background }]}>
-          <View
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={s.detailContent}
             style={[s.sheet, s.fullSheet, { backgroundColor: c.background }]}
           >
             {selected && (
@@ -330,7 +333,7 @@ export default function LearningScreen() {
                     tintColor={c.text}
                   />
                 </Pressable>
-                <Text style={[s.trackType, { color: c.brand }]}>
+                <Text style={[s.trackType, { color: studio }]}>
                   {nice(selected.type)}
                 </Text>
                 <Text style={[s.sheetTitle, { color: c.text }]}>
@@ -350,7 +353,7 @@ export default function LearningScreen() {
                         minutes: 25,
                       })
                     }
-                    style={[s.primary, { backgroundColor: c.brand }]}
+                    style={[s.primary, { backgroundColor: studio }]}
                   >
                     <Text style={s.primaryText}>Log 25-minute session</Text>
                   </Pressable>
@@ -399,7 +402,7 @@ export default function LearningScreen() {
                           }
                           size={19}
                           tintColor={
-                            lesson.completedAt ? c.brand : c.textSecondary
+                            lesson.completedAt ? studio : c.textSecondary
                           }
                         />
                         <Text
@@ -422,7 +425,7 @@ export default function LearningScreen() {
                 </ScrollView>
               </>
             )}
-          </View>
+          </ScrollView>
         </View>
       </Modal>
       <Modal
@@ -433,9 +436,13 @@ export default function LearningScreen() {
       >
         <View style={[s.modal, { backgroundColor: c.background }]}>
           <KeyboardAvoidingView
+            style={s.createKeyboard}
             behavior={Platform.OS === "ios" ? "padding" : undefined}
           >
-            <View
+            <ScrollView
+              contentContainerStyle={s.createContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
               style={[s.sheet, s.fullSheet, { backgroundColor: c.background }]}
             >
               <Pressable
@@ -450,8 +457,14 @@ export default function LearningScreen() {
               <Text style={[s.sheetTitle, { color: c.text }]}>
                 Add a learning track
               </Text>
+              <Text style={[s.createIntro, { color: c.textSecondary }]}>
+                Start small. KASA will turn it into a focused practice space,
+                not another abandoned list.
+              </Text>
+              <Text style={[s.fieldLabel, { color: c.textSecondary }]}>
+                WHAT ARE YOU BUILDING?
+              </Text>
               <TextInput
-                autoFocus
                 value={title}
                 onChangeText={setTitle}
                 placeholder="What are you learning?"
@@ -465,6 +478,37 @@ export default function LearningScreen() {
                   },
                 ]}
               />
+              <Text style={[s.fieldLabel, { color: c.textSecondary }]}>
+                FORMAT
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={s.types}
+              >
+                {types.map((item) => (
+                  <Pressable
+                    key={item}
+                    onPress={() => setType(item)}
+                    style={[
+                      s.type,
+                      {
+                        backgroundColor: type === item ? "#5067F5" : c.surface,
+                        borderColor: type === item ? "#5067F5" : c.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        s.typeText,
+                        { color: type === item ? "#fff" : c.textSecondary },
+                      ]}
+                    >
+                      {nice(item)}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
               <TextInput
                 value={provider}
                 onChangeText={setProvider}
@@ -499,34 +543,9 @@ export default function LearningScreen() {
                   minutes per week
                 </Text>
               </View>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={s.types}
-              >
-                {types.map((item) => (
-                  <Pressable
-                    key={item}
-                    onPress={() => setType(item)}
-                    style={[
-                      s.type,
-                      {
-                        backgroundColor: type === item ? c.brand : c.surface,
-                        borderColor: type === item ? c.brand : c.border,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        s.typeText,
-                        { color: type === item ? "#fff" : c.textSecondary },
-                      ]}
-                    >
-                      {nice(item)}
-                    </Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
+              <Text style={[s.fieldLabel, { color: c.textSecondary }]}>
+                YOUR RHYTHM
+              </Text>
               <TextInput
                 value={lessons}
                 onChangeText={setLessons}
@@ -543,12 +562,20 @@ export default function LearningScreen() {
                   },
                 ]}
               />
+              <View style={s.createBottomSpace} />
+            </ScrollView>
+            <View
+              style={[
+                s.createFooter,
+                { backgroundColor: c.background, borderColor: c.border },
+              ]}
+            >
               <Pressable
                 disabled={busy}
                 onPress={() => void saveTrack()}
                 style={[
                   s.primary,
-                  { backgroundColor: c.brand, opacity: busy ? 0.65 : 1 },
+                  { backgroundColor: "#5067F5", opacity: busy ? 0.65 : 1 },
                 ]}
               >
                 {busy ? (
@@ -671,6 +698,23 @@ const s = StyleSheet.create({
     borderTopLeftRadius: 0,
     borderTopRightRadius: 0,
     paddingTop: 62,
+  },
+  detailContent: { paddingBottom: 44 },
+  createKeyboard: { flex: 1 },
+  createContent: { paddingBottom: 120 },
+  createIntro: { fontSize: 12, lineHeight: 18, marginTop: 7, maxWidth: 330 },
+  fieldLabel: {
+    fontSize: 8,
+    fontWeight: "900",
+    letterSpacing: 1.1,
+    marginTop: 23,
+  },
+  createBottomSpace: { height: 20 },
+  createFooter: {
+    borderTopWidth: 1,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 17,
   },
   back: {
     width: 42,
