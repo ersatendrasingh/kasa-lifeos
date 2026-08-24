@@ -88,7 +88,6 @@ export default function PersonKhataScreen() {
   const [data, setData] = useState<PersonKhata | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [entryVisible, setEntryVisible] = useState(false);
   const [direction, setDirection] = useState<LedgerDirection>("LENT");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
@@ -132,13 +131,14 @@ export default function PersonKhataScreen() {
   }, [data?.entries]);
   const positive = (data?.person.balance || 0) > 0;
   const hasBalance = !!data?.person.balance;
-
-  function start(directionValue: LedgerDirection) {
-    setDirection(directionValue);
-    setAmount("");
-    setNote("");
-    setEntryVisible(true);
+  function cycleDirection() {
+    const directions = Object.keys(actionCopy) as LedgerDirection[];
+    setDirection(
+      (current) =>
+        directions[(directions.indexOf(current) + 1) % directions.length],
+    );
   }
+
   async function saveEntry() {
     const value = Number(amount.replace(/,/g, ""));
     if (!Number.isFinite(value) || value <= 0) {
@@ -154,7 +154,8 @@ export default function PersonKhataScreen() {
         amount: value,
         note: note.trim() || undefined,
       });
-      setEntryVisible(false);
+      setAmount("");
+      setNote("");
       await load(true);
     } catch (cause) {
       Alert.alert(
@@ -220,281 +221,192 @@ export default function PersonKhataScreen() {
           </View>
         ) : data ? (
           <>
-            {entryVisible ? (
-              <EntryEditor
-                c={c}
-                direction={direction}
-                setDirection={setDirection}
-                amount={amount}
-                setAmount={setAmount}
-                note={note}
-                setNote={setNote}
-                saving={saving}
-                onCancel={() => setEntryVisible(false)}
-                onSave={() => void saveEntry()}
-              />
-            ) : (
-              <>
-                <ScrollView
-                  contentContainerStyle={s.content}
-                  showsVerticalScrollIndicator={false}
-                  refreshControl={
-                    <RefreshControl
-                      refreshing={refreshing}
-                      onRefresh={() => void load(true)}
-                      tintColor={c.brand}
-                    />
-                  }
-                >
-                  <View style={s.profile}>
-                    <View style={[s.avatar, { backgroundColor: c.brandSoft }]}>
-                      <Text style={[s.avatarText, { color: c.brand }]}>
-                        {initials(data.person.name)}
-                      </Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[s.name, { color: c.text }]}>
-                        {data.person.name}
-                      </Text>
-                      <Text style={[s.category, { color: c.textSecondary }]}>
-                        {data.person.category || "Personal contact"}
-                      </Text>
-                    </View>
+            <>
+              <ScrollView
+                contentContainerStyle={s.content}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={() => void load(true)}
+                    tintColor={c.brand}
+                  />
+                }
+              >
+                <View style={s.profile}>
+                  <View style={[s.avatar, { backgroundColor: c.brandSoft }]}>
+                    <Text style={[s.avatarText, { color: c.brand }]}>
+                      {initials(data.person.name)}
+                    </Text>
                   </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.name, { color: c.text }]}>
+                      {data.person.name}
+                    </Text>
+                    <Text style={[s.category, { color: c.textSecondary }]}>
+                      {data.person.category || "Personal contact"}
+                    </Text>
+                  </View>
+                </View>
+                <View
+                  style={[
+                    s.balance,
+                    { backgroundColor: c.surface, borderColor: c.border },
+                  ]}
+                >
+                  <Text style={[s.balanceKicker, { color: c.textSecondary }]}>
+                    {hasBalance
+                      ? positive
+                        ? "THEY NEED TO RETURN"
+                        : "YOU NEED TO RETURN"
+                      : "ALL SETTLED"}
+                  </Text>
+                  <Text
+                    style={[
+                      s.balanceAmount,
+                      {
+                        color: hasBalance
+                          ? positive
+                            ? "#179B67"
+                            : "#D75B45"
+                          : c.text,
+                      },
+                    ]}
+                  >
+                    {hasBalance ? money(Math.abs(data.person.balance)) : "₹0"}
+                  </Text>
+                  <Text style={[s.balanceCopy, { color: c.textSecondary }]}>
+                    {hasBalance
+                      ? positive
+                        ? "A calm reminder is one tap away."
+                        : "Keep it clear, settle when ready."
+                      : "No money is pending between you."}
+                  </Text>
+                </View>
+                <View style={s.historyHead}>
+                  <Text style={[s.historyTitle, { color: c.text }]}>
+                    Khata history
+                  </Text>
+                  <Text style={[s.historyCount, { color: c.textSecondary }]}>
+                    {data.entries.length} ENTRIES
+                  </Text>
+                </View>
+                {grouped.length ? (
+                  grouped.map((group) => (
+                    <View key={group.date}>
+                      <Text style={[s.date, { color: c.textSecondary }]}>
+                        {group.date}
+                      </Text>
+                      {group.items.map((entry) => (
+                        <Bubble key={entry.id} entry={entry} brand={c.brand} />
+                      ))}
+                    </View>
+                  ))
+                ) : (
                   <View
                     style={[
-                      s.balance,
+                      s.empty,
                       { backgroundColor: c.surface, borderColor: c.border },
                     ]}
                   >
-                    <Text style={[s.balanceKicker, { color: c.textSecondary }]}>
-                      {hasBalance
-                        ? positive
-                          ? "THEY NEED TO RETURN"
-                          : "YOU NEED TO RETURN"
-                        : "ALL SETTLED"}
+                    <SymbolView
+                      name="bubble.left.and.bubble.right"
+                      size={28}
+                      tintColor={c.brand}
+                    />
+                    <Text style={[s.emptyTitle, { color: c.text }]}>
+                      A clear start
                     </Text>
-                    <Text
+                    <Text style={[s.emptyCopy, { color: c.textSecondary }]}>
+                      Every amount you add here stays in this one conversation
+                      with {data.person.name}.
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
+              <KeyboardAvoidingView
+                behavior={Platform.OS === "ios" ? "padding" : undefined}
+              >
+                <View
+                  style={[
+                    s.footer,
+                    { backgroundColor: c.background, borderColor: c.border },
+                  ]}
+                >
+                  <View style={s.chatComposer}>
+                    <Pressable
+                      onPress={cycleDirection}
                       style={[
-                        s.balanceAmount,
+                        s.directionChip,
+                        { backgroundColor: c.brandSoft },
+                      ]}
+                    >
+                      <Text
+                        numberOfLines={1}
+                        style={[s.directionChipText, { color: c.brand }]}
+                      >
+                        {actionCopy[direction].label}
+                      </Text>
+                      <SymbolView
+                        name="chevron.up.chevron.down"
+                        size={10}
+                        tintColor={c.brand}
+                      />
+                    </Pressable>
+                    <TextInput
+                      value={amount}
+                      onChangeText={setAmount}
+                      keyboardType="decimal-pad"
+                      placeholder="₹0"
+                      placeholderTextColor={c.textSecondary}
+                      style={[
+                        s.amount,
                         {
-                          color: hasBalance
-                            ? positive
-                              ? "#179B67"
-                              : "#D75B45"
-                            : c.text,
+                          backgroundColor: c.surface,
+                          borderColor: c.border,
+                          color: c.text,
+                        },
+                      ]}
+                    />
+                    <TextInput
+                      value={note}
+                      onChangeText={setNote}
+                      placeholder="Add note"
+                      placeholderTextColor={c.textSecondary}
+                      style={[
+                        s.note,
+                        {
+                          backgroundColor: c.surface,
+                          borderColor: c.border,
+                          color: c.text,
+                        },
+                      ]}
+                    />
+                    <Pressable
+                      disabled={saving}
+                      onPress={() => void saveEntry()}
+                      style={[
+                        s.save,
+                        {
+                          backgroundColor: c.brand,
+                          opacity: saving ? 0.65 : 1,
                         },
                       ]}
                     >
-                      {hasBalance ? money(Math.abs(data.person.balance)) : "₹0"}
-                    </Text>
-                    <Text style={[s.balanceCopy, { color: c.textSecondary }]}>
-                      {hasBalance
-                        ? positive
-                          ? "A calm reminder is one tap away."
-                          : "Keep it clear, settle when ready."
-                        : "No money is pending between you."}
-                    </Text>
-                  </View>
-                  <View style={s.historyHead}>
-                    <Text style={[s.historyTitle, { color: c.text }]}>
-                      Khata history
-                    </Text>
-                    <Text style={[s.historyCount, { color: c.textSecondary }]}>
-                      {data.entries.length} ENTRIES
-                    </Text>
-                  </View>
-                  {grouped.length ? (
-                    grouped.map((group) => (
-                      <View key={group.date}>
-                        <Text style={[s.date, { color: c.textSecondary }]}>
-                          {group.date}
-                        </Text>
-                        {group.items.map((entry) => (
-                          <Bubble
-                            key={entry.id}
-                            entry={entry}
-                            brand={c.brand}
-                          />
-                        ))}
-                      </View>
-                    ))
-                  ) : (
-                    <View
-                      style={[
-                        s.empty,
-                        { backgroundColor: c.surface, borderColor: c.border },
-                      ]}
-                    >
-                      <SymbolView
-                        name="bubble.left.and.bubble.right"
-                        size={28}
-                        tintColor={c.brand}
-                      />
-                      <Text style={[s.emptyTitle, { color: c.text }]}>
-                        A clear start
-                      </Text>
-                      <Text style={[s.emptyCopy, { color: c.textSecondary }]}>
-                        Every amount you add here stays in this one conversation
-                        with {data.person.name}.
-                      </Text>
-                    </View>
-                  )}
-                </ScrollView>
-                <KeyboardAvoidingView
-                  behavior={Platform.OS === "ios" ? "padding" : undefined}
-                >
-                  <View
-                    style={[
-                      s.footer,
-                      { backgroundColor: c.background, borderColor: c.border },
-                    ]}
-                  >
-                    {entryVisible ? (
-                      <>
-                        <View style={s.composerHead}>
-                          <View
-                            style={[
-                              s.sheetIcon,
-                              { backgroundColor: c.brandSoft },
-                            ]}
-                          >
-                            <SymbolView
-                              name={actionCopy[direction].icon}
-                              size={16}
-                              tintColor={c.brand}
-                            />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={[s.composerTitle, { color: c.text }]}>
-                              {actionCopy[direction].title}
-                            </Text>
-                            <Text
-                              style={[
-                                s.composerDetail,
-                                { color: c.textSecondary },
-                              ]}
-                            >
-                              {actionCopy[direction].detail}
-                            </Text>
-                          </View>
-                          <Pressable
-                            disabled={saving}
-                            onPress={() => setEntryVisible(false)}
-                          >
-                            <SymbolView
-                              name="xmark.circle.fill"
-                              size={21}
-                              tintColor={c.textSecondary}
-                            />
-                          </Pressable>
-                        </View>
-                        <ScrollView
-                          horizontal
-                          showsHorizontalScrollIndicator={false}
-                          contentContainerStyle={s.choiceRow}
-                        >
-                          {(Object.keys(actionCopy) as LedgerDirection[]).map(
-                            (item) => (
-                              <Pressable
-                                key={item}
-                                onPress={() => setDirection(item)}
-                                style={[
-                                  s.choice,
-                                  {
-                                    backgroundColor:
-                                      item === direction ? c.brand : c.surface,
-                                    borderColor:
-                                      item === direction ? c.brand : c.border,
-                                  },
-                                ]}
-                              >
-                                <Text
-                                  style={[
-                                    s.choiceText,
-                                    {
-                                      color:
-                                        item === direction ? "#fff" : c.text,
-                                    },
-                                  ]}
-                                >
-                                  {actionCopy[item].label}
-                                </Text>
-                              </Pressable>
-                            ),
-                          )}
-                        </ScrollView>
-                        <View style={s.inlineInputs}>
-                          <TextInput
-                            autoFocus
-                            value={amount}
-                            onChangeText={setAmount}
-                            keyboardType="decimal-pad"
-                            placeholder="₹ Amount"
-                            placeholderTextColor={c.textSecondary}
-                            style={[
-                              s.amount,
-                              {
-                                backgroundColor: c.surface,
-                                borderColor: c.border,
-                                color: c.text,
-                              },
-                            ]}
-                          />
-                          <TextInput
-                            value={note}
-                            onChangeText={setNote}
-                            placeholder="Note"
-                            placeholderTextColor={c.textSecondary}
-                            style={[
-                              s.note,
-                              {
-                                backgroundColor: c.surface,
-                                borderColor: c.border,
-                                color: c.text,
-                              },
-                            ]}
-                          />
-                          <Pressable
-                            disabled={saving}
-                            onPress={() => void saveEntry()}
-                            style={[
-                              s.save,
-                              {
-                                backgroundColor: c.brand,
-                                opacity: saving ? 0.65 : 1,
-                              },
-                            ]}
-                          >
-                            {saving ? (
-                              <KasaSpinner size={18} color="#fff" />
-                            ) : (
-                              <SymbolView
-                                name="arrow.up"
-                                size={16}
-                                tintColor="#fff"
-                              />
-                            )}
-                          </Pressable>
-                        </View>
-                      </>
-                    ) : (
-                      <Pressable
-                        onPress={() => start(positive ? "RECEIVED" : "LENT")}
-                        style={[s.addButton, { backgroundColor: c.brand }]}
-                      >
-                        <Text style={s.addText}>Add khata entry</Text>
+                      {saving ? (
+                        <KasaSpinner size={18} color="#fff" />
+                      ) : (
                         <SymbolView
-                          name="arrow.right"
-                          size={15}
+                          name="arrow.up"
+                          size={16}
                           tintColor="#fff"
                         />
-                      </Pressable>
-                    )}
+                      )}
+                    </Pressable>
                   </View>
-                </KeyboardAvoidingView>
-              </>
-            )}
+                </View>
+              </KeyboardAvoidingView>
+            </>
           </>
         ) : null}
       </SafeAreaView>
@@ -502,7 +414,7 @@ export default function PersonKhataScreen() {
   );
 }
 
-function EntryEditor({
+export function EntryEditor({
   c,
   direction,
   setDirection,
@@ -854,6 +766,17 @@ const s = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 14,
   },
+  chatComposer: { flexDirection: "row", alignItems: "center", gap: 6 },
+  directionChip: {
+    height: 48,
+    maxWidth: 76,
+    borderRadius: 15,
+    paddingHorizontal: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  directionChipText: { flex: 1, fontSize: 8, fontWeight: "900" },
   addButton: {
     flex: 1,
     height: 51,
