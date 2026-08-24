@@ -442,7 +442,12 @@ export default function LearningScreen() {
               contentContainerStyle={s.createContent}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
-              style={[s.sheet, s.fullSheet, { backgroundColor: c.background }]}
+              style={[
+                s.sheet,
+                s.fullSheet,
+                s.createScroll,
+                { backgroundColor: c.background },
+              ]}
             >
               <Pressable
                 onPress={() => setCreate(false)}
@@ -703,7 +708,8 @@ const s = StyleSheet.create({
   },
   detailContent: { paddingBottom: 44 },
   createKeyboard: { flex: 1 },
-  createContent: { paddingBottom: 120 },
+  createScroll: { flex: 1 },
+  createContent: { flexGrow: 1, paddingBottom: 126 },
   createIntro: { fontSize: 12, lineHeight: 18, marginTop: 7, maxWidth: 330 },
   fieldLabel: {
     fontSize: 8,
@@ -711,8 +717,9 @@ const s = StyleSheet.create({
     letterSpacing: 1.1,
     marginTop: 23,
   },
-  createBottomSpace: { height: 20 },
+  createBottomSpace: { height: 14 },
   createFooter: {
+    flexShrink: 0,
     borderTopWidth: 1,
     paddingHorizontal: 20,
     paddingTop: 12,
