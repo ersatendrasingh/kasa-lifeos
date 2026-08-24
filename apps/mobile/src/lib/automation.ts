@@ -41,7 +41,7 @@ export type TimelineEvent = {
 
 export type CalendarItem = {
   id: string;
-  type: "EVENT" | "TASK" | "EXPIRY" | "MOMENT";
+  type: "EVENT" | "TASK" | "EXPIRY" | "MOMENT" | "MONEY";
   title: string;
   detail: string | null;
   date: string;

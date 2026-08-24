@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppHeader } from "@/components/app-header";
 import { CompactNavDock } from "@/components/compact-nav-dock";
@@ -22,12 +23,14 @@ const color = {
   TASK: "#8358E8",
   EXPIRY: "#E75161",
   MOMENT: "#20A06A",
+  MONEY: "#E9A521",
 } as const;
 const typeLabel = {
   EVENT: "PLAN",
   TASK: "TASK",
   EXPIRY: "EXPIRY",
   MOMENT: "MEMORY",
+  MONEY: "MONEY",
 } as const;
 const dateKey = (value: Date | string) => {
   const date = typeof value === "string" ? new Date(value) : value;
@@ -40,6 +43,7 @@ export default function CalendarScreen({
   compactNavigation?: boolean;
 }) {
   const c = useTheme();
+  const insets = useSafeAreaInsets();
   const [month, setMonth] = useState(
     () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   );
@@ -90,7 +94,14 @@ export default function CalendarScreen({
       <CosmicBackground />
       <SafeAreaView edges={["top"]} style={s.safe}>
         <ScrollView
-          contentContainerStyle={s.content}
+          contentContainerStyle={[
+            s.content,
+            {
+              paddingBottom: compactNavigation
+                ? Math.max(insets.bottom + 128, 148)
+                : 48,
+            },
+          ]}
           showsVerticalScrollIndicator={false}
           stickyHeaderIndices={[7]}
         >
@@ -315,7 +326,7 @@ export default function CalendarScreen({
 const s = StyleSheet.create({
   screen: { flex: 1 },
   safe: { flex: 1 },
-  content: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 48 },
+  content: { paddingHorizontal: 20, paddingTop: 8 },
   kicker: { fontSize: 9, fontWeight: "900", letterSpacing: 1.4, marginTop: 17 },
   title: {
     fontSize: 33,

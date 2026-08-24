@@ -29,6 +29,7 @@ export async function GET(request: Request) {
       orderBy: { startsAt: "asc" },
       select: {
         id: true,
+        sourceEventId: true,
         title: true,
         notes: true,
         startsAt: true,
@@ -78,7 +79,10 @@ export async function GET(request: Request) {
   const items = [
     ...calendarEvents.map((event) => ({
       id: `event:${event.id}`,
-      type: "EVENT",
+      type:
+        event.sourceEventId?.startsWith("c") && event.title.startsWith("Money ")
+          ? "MONEY"
+          : "EVENT",
       title: event.title,
       detail: event.notes,
       date: event.startsAt,

@@ -33,25 +33,25 @@ const actionCopy: Record<
   { label: string; title: string; detail: string; icon: SFSymbol }
 > = {
   LENT: {
-    label: "You gave",
+    label: "You sent",
     title: "You gave them money",
     detail: "They now need to return it.",
     icon: "arrow.up.right",
   },
   BORROWED: {
-    label: "They gave you",
+    label: "You received",
     title: "They gave you money",
     detail: "You now need to return it.",
     icon: "arrow.down.left",
   },
   RECEIVED: {
-    label: "They repaid you",
+    label: "You received",
     title: "They paid you back",
     detail: "This reduces what they owe you.",
     icon: "arrow.down.left",
   },
   PAID: {
-    label: "You repaid",
+    label: "You sent",
     title: "You paid them back",
     detail: "This reduces what you owe them.",
     icon: "arrow.up.right",
@@ -89,7 +89,7 @@ export default function PersonKhataScreen() {
   const [data, setData] = useState<PersonKhata | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [direction, setDirection] = useState<LedgerDirection>("LENT");
+  const [transferKind, setTransferKind] = useState<"SEND" | "RECEIVE">("SEND");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
@@ -132,12 +132,16 @@ export default function PersonKhataScreen() {
   }, [data?.entries]);
   const positive = (data?.person.balance || 0) > 0;
   const hasBalance = !!data?.person.balance;
-  function cycleDirection() {
-    const directions = Object.keys(actionCopy) as LedgerDirection[];
-    setDirection(
-      (current) =>
-        directions[(directions.indexOf(current) + 1) % directions.length],
-    );
+  const direction: LedgerDirection =
+    transferKind === "SEND"
+      ? data?.person.balance && data.person.balance < 0
+        ? "PAID"
+        : "LENT"
+      : data?.person.balance && data.person.balance > 0
+        ? "RECEIVED"
+        : "BORROWED";
+  function cycleTransferKind() {
+    setTransferKind((current) => (current === "SEND" ? "RECEIVE" : "SEND"));
   }
 
   async function saveEntry() {
@@ -147,6 +151,29 @@ export default function PersonKhataScreen() {
       return;
     }
     if (!data) return;
+    const currentBalance = data.person.balance;
+    if (
+      transferKind === "SEND" &&
+      currentBalance < 0 &&
+      value > Math.abs(currentBalance)
+    ) {
+      Alert.alert(
+        "Split this entry",
+        `You currently owe ${money(Math.abs(currentBalance))}. Send that amount first, then add the remaining new payment as a separate entry.`,
+      );
+      return;
+    }
+    if (
+      transferKind === "RECEIVE" &&
+      currentBalance > 0 &&
+      value > currentBalance
+    ) {
+      Alert.alert(
+        "Split this entry",
+        `${data.person.name} currently owes ${money(currentBalance)}. Record that received amount first, then add any new amount separately.`,
+      );
+      return;
+    }
     setSaving(true);
     try {
       await createLedgerEntry({
@@ -360,7 +387,7 @@ export default function PersonKhataScreen() {
                   ]}
                 >
                   <Pressable
-                    onPress={cycleDirection}
+                    onPress={cycleTransferKind}
                     style={[
                       s.directionBar,
                       { backgroundColor: c.brandSoft, borderColor: c.border },
@@ -370,19 +397,25 @@ export default function PersonKhataScreen() {
                       style={[s.directionMarker, { backgroundColor: c.brand }]}
                     >
                       <SymbolView
-                        name={actionCopy[direction].icon}
+                        name={
+                          transferKind === "SEND"
+                            ? "arrow.up.right"
+                            : "arrow.down.left"
+                        }
                         size={13}
                         tintColor="#fff"
                       />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[s.directionTitle, { color: c.text }]}>
-                        {actionCopy[direction].label}
+                        {transferKind === "SEND"
+                          ? "You sent money"
+                          : "You received money"}
                       </Text>
                       <Text
                         style={[s.directionSide, { color: c.textSecondary }]}
                       >
-                        {direction === "LENT" || direction === "PAID"
+                        {transferKind === "SEND"
                           ? "YOUR ENTRY · appears on the right"
                           : "THEIR ENTRY · appears on the left"}
                       </Text>
