@@ -32,25 +32,25 @@ const actionCopy: Record<
   { label: string; title: string; detail: string; icon: SFSymbol }
 > = {
   LENT: {
-    label: "I gave",
+    label: "You gave",
     title: "You gave them money",
     detail: "They now need to return it.",
     icon: "arrow.up.right",
   },
   BORROWED: {
-    label: "I borrowed",
+    label: "They gave you",
     title: "They gave you money",
     detail: "You now need to return it.",
     icon: "arrow.down.left",
   },
   RECEIVED: {
-    label: "They repaid",
+    label: "They repaid you",
     title: "They paid you back",
     detail: "This reduces what they owe you.",
     icon: "arrow.down.left",
   },
   PAID: {
-    label: "I repaid",
+    label: "You repaid",
     title: "You paid them back",
     detail: "This reduces what you owe them.",
     icon: "arrow.up.right",
@@ -333,26 +333,39 @@ export default function PersonKhataScreen() {
                     { backgroundColor: c.background, borderColor: c.border },
                   ]}
                 >
-                  <View style={s.chatComposer}>
-                    <Pressable
-                      onPress={cycleDirection}
-                      style={[
-                        s.directionChip,
-                        { backgroundColor: c.brandSoft },
-                      ]}
+                  <Pressable
+                    onPress={cycleDirection}
+                    style={[
+                      s.directionBar,
+                      { backgroundColor: c.brandSoft, borderColor: c.border },
+                    ]}
+                  >
+                    <View
+                      style={[s.directionMarker, { backgroundColor: c.brand }]}
                     >
-                      <Text
-                        numberOfLines={1}
-                        style={[s.directionChipText, { color: c.brand }]}
-                      >
+                      <SymbolView
+                        name={actionCopy[direction].icon}
+                        size={13}
+                        tintColor="#fff"
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.directionTitle, { color: c.text }]}>
                         {actionCopy[direction].label}
                       </Text>
-                      <SymbolView
-                        name="chevron.up.chevron.down"
-                        size={10}
-                        tintColor={c.brand}
-                      />
-                    </Pressable>
+                      <Text
+                        style={[s.directionSide, { color: c.textSecondary }]}
+                      >
+                        {direction === "LENT" || direction === "PAID"
+                          ? "YOUR ENTRY · appears on the right"
+                          : "THEIR ENTRY · appears on the left"}
+                      </Text>
+                    </View>
+                    <Text style={[s.changeText, { color: c.brand }]}>
+                      CHANGE
+                    </Text>
+                  </Pressable>
+                  <View style={s.chatComposer}>
                     <TextInput
                       value={amount}
                       onChangeText={setAmount}
@@ -767,16 +780,26 @@ const s = StyleSheet.create({
     paddingBottom: 14,
   },
   chatComposer: { flexDirection: "row", alignItems: "center", gap: 6 },
-  directionChip: {
+  directionBar: {
     height: 48,
-    maxWidth: 76,
-    borderRadius: 15,
-    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 9,
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
+    gap: 9,
+    marginBottom: 8,
   },
-  directionChipText: { flex: 1, fontSize: 8, fontWeight: "900" },
+  directionMarker: {
+    width: 29,
+    height: 29,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  directionTitle: { fontSize: 11, fontWeight: "900" },
+  directionSide: { fontSize: 8, fontWeight: "700", marginTop: 2 },
+  changeText: { fontSize: 8, fontWeight: "900", letterSpacing: 0.5 },
   addButton: {
     flex: 1,
     height: 51,
@@ -818,7 +841,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 11,
     fontSize: 14,
     fontWeight: "900",
-    width: 88,
+    width: 122,
   },
   note: {
     flex: 1,
