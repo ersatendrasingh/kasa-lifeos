@@ -28,6 +28,7 @@ const sections = [
       ["folder.fill", "Memory Vault", "/life"],
       ["heart.fill", "Health Hub", "/health"],
       ["creditcard.fill", "Money & Bills", "/money"],
+      ["graduationcap.fill", "Learning Studio", "/learning"],
       ["person.2.fill", "People & Follow-ups", "/people"],
       ["house.lodge.fill", "Home & Vehicle", "/life"],
       ["flag.checkered", "Growth missions", "/growth"],
@@ -54,6 +55,7 @@ export function LifeDrawer({
       | "/life"
       | "/health"
       | "/money"
+      | "/learning"
       | "/people"
       | "/growth",
   ) {

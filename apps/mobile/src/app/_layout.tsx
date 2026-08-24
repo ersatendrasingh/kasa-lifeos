@@ -115,6 +115,10 @@ export default function RootLayout() {
             options={{ animation: "slide_from_right" }}
           />
           <Stack.Screen
+            name="learning"
+            options={{ animation: "slide_from_right" }}
+          />
+          <Stack.Screen
             name="growth"
             options={{ animation: "slide_from_right" }}
           />
