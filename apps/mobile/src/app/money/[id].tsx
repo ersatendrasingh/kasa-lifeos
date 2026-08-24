@@ -220,276 +220,281 @@ export default function PersonKhataScreen() {
           </View>
         ) : data ? (
           <>
-            <ScrollView
-              contentContainerStyle={[
-                s.content,
-                entryVisible && s.contentWithComposer,
-              ]}
-              showsVerticalScrollIndicator={false}
-              refreshControl={
-                <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={() => void load(true)}
-                  tintColor={c.brand}
-                />
-              }
-            >
-              <View style={s.profile}>
-                <View style={[s.avatar, { backgroundColor: c.brandSoft }]}>
-                  <Text style={[s.avatarText, { color: c.brand }]}>
-                    {initials(data.person.name)}
-                  </Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[s.name, { color: c.text }]}>
-                    {data.person.name}
-                  </Text>
-                  <Text style={[s.category, { color: c.textSecondary }]}>
-                    {data.person.category || "Personal contact"}
-                  </Text>
-                </View>
-              </View>
-              <View
-                style={[
-                  s.balance,
-                  { backgroundColor: c.surface, borderColor: c.border },
-                ]}
-              >
-                <Text style={[s.balanceKicker, { color: c.textSecondary }]}>
-                  {hasBalance
-                    ? positive
-                      ? "THEY NEED TO RETURN"
-                      : "YOU NEED TO RETURN"
-                    : "ALL SETTLED"}
-                </Text>
-                <Text
-                  style={[
-                    s.balanceAmount,
-                    {
-                      color: hasBalance
-                        ? positive
-                          ? "#179B67"
-                          : "#D75B45"
-                        : c.text,
-                    },
-                  ]}
+            {entryVisible ? (
+              <EntryEditor
+                c={c}
+                direction={direction}
+                setDirection={setDirection}
+                amount={amount}
+                setAmount={setAmount}
+                note={note}
+                setNote={setNote}
+                saving={saving}
+                onCancel={() => setEntryVisible(false)}
+                onSave={() => void saveEntry()}
+              />
+            ) : (
+              <>
+                <ScrollView
+                  contentContainerStyle={s.content}
+                  showsVerticalScrollIndicator={false}
+                  refreshControl={
+                    <RefreshControl
+                      refreshing={refreshing}
+                      onRefresh={() => void load(true)}
+                      tintColor={c.brand}
+                    />
+                  }
                 >
-                  {hasBalance ? money(Math.abs(data.person.balance)) : "₹0"}
-                </Text>
-                <Text style={[s.balanceCopy, { color: c.textSecondary }]}>
-                  {hasBalance
-                    ? positive
-                      ? "A calm reminder is one tap away."
-                      : "Keep it clear, settle when ready."
-                    : "No money is pending between you."}
-                </Text>
-              </View>
-              <View style={s.actions}>
-                <Action
-                  label="I gave"
-                  icon="arrow.up.right"
-                  onPress={() => start("LENT")}
-                  color={c.brand}
-                />
-                <Action
-                  label="I borrowed"
-                  icon="arrow.down.left"
-                  onPress={() => start("BORROWED")}
-                  color={c.brand}
-                />
-                <Action
-                  label="They repaid"
-                  icon="arrow.down.left"
-                  onPress={() => start("RECEIVED")}
-                  color="#179B67"
-                />
-                <Action
-                  label="I repaid"
-                  icon="arrow.up.right"
-                  onPress={() => start("PAID")}
-                  color="#D75B45"
-                />
-              </View>
-              <View style={s.historyHead}>
-                <Text style={[s.historyTitle, { color: c.text }]}>
-                  Khata history
-                </Text>
-                <Text style={[s.historyCount, { color: c.textSecondary }]}>
-                  {data.entries.length} ENTRIES
-                </Text>
-              </View>
-              {grouped.length ? (
-                grouped.map((group) => (
-                  <View key={group.date}>
-                    <Text style={[s.date, { color: c.textSecondary }]}>
-                      {group.date}
-                    </Text>
-                    {group.items.map((entry) => (
-                      <Bubble key={entry.id} entry={entry} brand={c.brand} />
-                    ))}
-                  </View>
-                ))
-              ) : (
-                <View
-                  style={[
-                    s.empty,
-                    { backgroundColor: c.surface, borderColor: c.border },
-                  ]}
-                >
-                  <SymbolView
-                    name="bubble.left.and.bubble.right"
-                    size={28}
-                    tintColor={c.brand}
-                  />
-                  <Text style={[s.emptyTitle, { color: c.text }]}>
-                    A clear start
-                  </Text>
-                  <Text style={[s.emptyCopy, { color: c.textSecondary }]}>
-                    Every amount you add here stays in this one conversation
-                    with {data.person.name}.
-                  </Text>
-                </View>
-              )}
-            </ScrollView>
-            <KeyboardAvoidingView
-              behavior={Platform.OS === "ios" ? "padding" : undefined}
-            >
-              <View
-                style={[
-                  s.footer,
-                  { backgroundColor: c.background, borderColor: c.border },
-                ]}
-              >
-                {entryVisible ? (
-                  <>
-                    <View style={s.composerHead}>
-                      <View
-                        style={[s.sheetIcon, { backgroundColor: c.brandSoft }]}
-                      >
-                        <SymbolView
-                          name={actionCopy[direction].icon}
-                          size={16}
-                          tintColor={c.brand}
-                        />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[s.composerTitle, { color: c.text }]}>
-                          {actionCopy[direction].title}
-                        </Text>
-                        <Text
-                          style={[s.composerDetail, { color: c.textSecondary }]}
-                        >
-                          {actionCopy[direction].detail}
-                        </Text>
-                      </View>
-                      <Pressable
-                        disabled={saving}
-                        onPress={() => setEntryVisible(false)}
-                      >
-                        <SymbolView
-                          name="xmark.circle.fill"
-                          size={21}
-                          tintColor={c.textSecondary}
-                        />
-                      </Pressable>
+                  <View style={s.profile}>
+                    <View style={[s.avatar, { backgroundColor: c.brandSoft }]}>
+                      <Text style={[s.avatarText, { color: c.brand }]}>
+                        {initials(data.person.name)}
+                      </Text>
                     </View>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={s.choiceRow}
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.name, { color: c.text }]}>
+                        {data.person.name}
+                      </Text>
+                      <Text style={[s.category, { color: c.textSecondary }]}>
+                        {data.person.category || "Personal contact"}
+                      </Text>
+                    </View>
+                  </View>
+                  <View
+                    style={[
+                      s.balance,
+                      { backgroundColor: c.surface, borderColor: c.border },
+                    ]}
+                  >
+                    <Text style={[s.balanceKicker, { color: c.textSecondary }]}>
+                      {hasBalance
+                        ? positive
+                          ? "THEY NEED TO RETURN"
+                          : "YOU NEED TO RETURN"
+                        : "ALL SETTLED"}
+                    </Text>
+                    <Text
+                      style={[
+                        s.balanceAmount,
+                        {
+                          color: hasBalance
+                            ? positive
+                              ? "#179B67"
+                              : "#D75B45"
+                            : c.text,
+                        },
+                      ]}
                     >
-                      {(Object.keys(actionCopy) as LedgerDirection[]).map(
-                        (item) => (
-                          <Pressable
-                            key={item}
-                            onPress={() => setDirection(item)}
+                      {hasBalance ? money(Math.abs(data.person.balance)) : "₹0"}
+                    </Text>
+                    <Text style={[s.balanceCopy, { color: c.textSecondary }]}>
+                      {hasBalance
+                        ? positive
+                          ? "A calm reminder is one tap away."
+                          : "Keep it clear, settle when ready."
+                        : "No money is pending between you."}
+                    </Text>
+                  </View>
+                  <View style={s.historyHead}>
+                    <Text style={[s.historyTitle, { color: c.text }]}>
+                      Khata history
+                    </Text>
+                    <Text style={[s.historyCount, { color: c.textSecondary }]}>
+                      {data.entries.length} ENTRIES
+                    </Text>
+                  </View>
+                  {grouped.length ? (
+                    grouped.map((group) => (
+                      <View key={group.date}>
+                        <Text style={[s.date, { color: c.textSecondary }]}>
+                          {group.date}
+                        </Text>
+                        {group.items.map((entry) => (
+                          <Bubble
+                            key={entry.id}
+                            entry={entry}
+                            brand={c.brand}
+                          />
+                        ))}
+                      </View>
+                    ))
+                  ) : (
+                    <View
+                      style={[
+                        s.empty,
+                        { backgroundColor: c.surface, borderColor: c.border },
+                      ]}
+                    >
+                      <SymbolView
+                        name="bubble.left.and.bubble.right"
+                        size={28}
+                        tintColor={c.brand}
+                      />
+                      <Text style={[s.emptyTitle, { color: c.text }]}>
+                        A clear start
+                      </Text>
+                      <Text style={[s.emptyCopy, { color: c.textSecondary }]}>
+                        Every amount you add here stays in this one conversation
+                        with {data.person.name}.
+                      </Text>
+                    </View>
+                  )}
+                </ScrollView>
+                <KeyboardAvoidingView
+                  behavior={Platform.OS === "ios" ? "padding" : undefined}
+                >
+                  <View
+                    style={[
+                      s.footer,
+                      { backgroundColor: c.background, borderColor: c.border },
+                    ]}
+                  >
+                    {entryVisible ? (
+                      <>
+                        <View style={s.composerHead}>
+                          <View
                             style={[
-                              s.choice,
+                              s.sheetIcon,
+                              { backgroundColor: c.brandSoft },
+                            ]}
+                          >
+                            <SymbolView
+                              name={actionCopy[direction].icon}
+                              size={16}
+                              tintColor={c.brand}
+                            />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[s.composerTitle, { color: c.text }]}>
+                              {actionCopy[direction].title}
+                            </Text>
+                            <Text
+                              style={[
+                                s.composerDetail,
+                                { color: c.textSecondary },
+                              ]}
+                            >
+                              {actionCopy[direction].detail}
+                            </Text>
+                          </View>
+                          <Pressable
+                            disabled={saving}
+                            onPress={() => setEntryVisible(false)}
+                          >
+                            <SymbolView
+                              name="xmark.circle.fill"
+                              size={21}
+                              tintColor={c.textSecondary}
+                            />
+                          </Pressable>
+                        </View>
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={s.choiceRow}
+                        >
+                          {(Object.keys(actionCopy) as LedgerDirection[]).map(
+                            (item) => (
+                              <Pressable
+                                key={item}
+                                onPress={() => setDirection(item)}
+                                style={[
+                                  s.choice,
+                                  {
+                                    backgroundColor:
+                                      item === direction ? c.brand : c.surface,
+                                    borderColor:
+                                      item === direction ? c.brand : c.border,
+                                  },
+                                ]}
+                              >
+                                <Text
+                                  style={[
+                                    s.choiceText,
+                                    {
+                                      color:
+                                        item === direction ? "#fff" : c.text,
+                                    },
+                                  ]}
+                                >
+                                  {actionCopy[item].label}
+                                </Text>
+                              </Pressable>
+                            ),
+                          )}
+                        </ScrollView>
+                        <View style={s.inlineInputs}>
+                          <TextInput
+                            autoFocus
+                            value={amount}
+                            onChangeText={setAmount}
+                            keyboardType="decimal-pad"
+                            placeholder="₹ Amount"
+                            placeholderTextColor={c.textSecondary}
+                            style={[
+                              s.amount,
                               {
-                                backgroundColor:
-                                  item === direction ? c.brand : c.surface,
-                                borderColor:
-                                  item === direction ? c.brand : c.border,
+                                backgroundColor: c.surface,
+                                borderColor: c.border,
+                                color: c.text,
+                              },
+                            ]}
+                          />
+                          <TextInput
+                            value={note}
+                            onChangeText={setNote}
+                            placeholder="Note"
+                            placeholderTextColor={c.textSecondary}
+                            style={[
+                              s.note,
+                              {
+                                backgroundColor: c.surface,
+                                borderColor: c.border,
+                                color: c.text,
+                              },
+                            ]}
+                          />
+                          <Pressable
+                            disabled={saving}
+                            onPress={() => void saveEntry()}
+                            style={[
+                              s.save,
+                              {
+                                backgroundColor: c.brand,
+                                opacity: saving ? 0.65 : 1,
                               },
                             ]}
                           >
-                            <Text
-                              style={[
-                                s.choiceText,
-                                { color: item === direction ? "#fff" : c.text },
-                              ]}
-                            >
-                              {actionCopy[item].label}
-                            </Text>
+                            {saving ? (
+                              <KasaSpinner size={18} color="#fff" />
+                            ) : (
+                              <SymbolView
+                                name="arrow.up"
+                                size={16}
+                                tintColor="#fff"
+                              />
+                            )}
                           </Pressable>
-                        ),
-                      )}
-                    </ScrollView>
-                    <View style={s.inlineInputs}>
-                      <TextInput
-                        autoFocus
-                        value={amount}
-                        onChangeText={setAmount}
-                        keyboardType="decimal-pad"
-                        placeholder="₹ Amount"
-                        placeholderTextColor={c.textSecondary}
-                        style={[
-                          s.amount,
-                          {
-                            backgroundColor: c.surface,
-                            borderColor: c.border,
-                            color: c.text,
-                          },
-                        ]}
-                      />
-                      <TextInput
-                        value={note}
-                        onChangeText={setNote}
-                        placeholder="Note"
-                        placeholderTextColor={c.textSecondary}
-                        style={[
-                          s.note,
-                          {
-                            backgroundColor: c.surface,
-                            borderColor: c.border,
-                            color: c.text,
-                          },
-                        ]}
-                      />
+                        </View>
+                      </>
+                    ) : (
                       <Pressable
-                        disabled={saving}
-                        onPress={() => void saveEntry()}
-                        style={[
-                          s.save,
-                          {
-                            backgroundColor: c.brand,
-                            opacity: saving ? 0.65 : 1,
-                          },
-                        ]}
+                        onPress={() => start(positive ? "RECEIVED" : "LENT")}
+                        style={[s.addButton, { backgroundColor: c.brand }]}
                       >
-                        {saving ? (
-                          <KasaSpinner size={18} color="#fff" />
-                        ) : (
-                          <SymbolView
-                            name="arrow.up"
-                            size={16}
-                            tintColor="#fff"
-                          />
-                        )}
+                        <Text style={s.addText}>Add khata entry</Text>
+                        <SymbolView
+                          name="arrow.right"
+                          size={15}
+                          tintColor="#fff"
+                        />
                       </Pressable>
-                    </View>
-                  </>
-                ) : (
-                  <Pressable
-                    onPress={() => start(positive ? "RECEIVED" : "LENT")}
-                    style={[s.addButton, { backgroundColor: c.brand }]}
-                  >
-                    <SymbolView name="plus" size={16} tintColor="#fff" />
-                    <Text style={s.addText}>Add entry</Text>
-                  </Pressable>
-                )}
-              </View>
-            </KeyboardAvoidingView>
+                    )}
+                  </View>
+                </KeyboardAvoidingView>
+              </>
+            )}
           </>
         ) : null}
       </SafeAreaView>
@@ -497,27 +502,181 @@ export default function PersonKhataScreen() {
   );
 }
 
-function Action({
-  label,
-  icon,
-  color,
-  onPress,
+function EntryEditor({
+  c,
+  direction,
+  setDirection,
+  amount,
+  setAmount,
+  note,
+  setNote,
+  saving,
+  onCancel,
+  onSave,
 }: {
-  label: string;
-  icon: SFSymbol;
-  color: string;
-  onPress: () => void;
+  c: ReturnType<typeof useTheme>;
+  direction: LedgerDirection;
+  setDirection: (value: LedgerDirection) => void;
+  amount: string;
+  setAmount: (value: string) => void;
+  note: string;
+  setNote: (value: string) => void;
+  saving: boolean;
+  onCancel: () => void;
+  onSave: () => void;
 }) {
   return (
-    <Pressable
-      onPress={onPress}
-      style={[s.action, { borderColor: `${color}32` }]}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      style={s.editorScreen}
     >
-      <View style={[s.actionIcon, { backgroundColor: `${color}18` }]}>
-        <SymbolView name={icon} size={13} tintColor={color} />
+      <ScrollView
+        contentContainerStyle={s.editorContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={s.editorTop}>
+          <Pressable
+            disabled={saving}
+            onPress={onCancel}
+            style={[
+              s.editorBack,
+              { backgroundColor: c.surface, borderColor: c.border },
+            ]}
+          >
+            <SymbolView name="chevron.left" size={17} tintColor={c.text} />
+          </Pressable>
+          <Text style={[s.editorKicker, { color: c.textSecondary }]}>
+            NEW KHATA ENTRY
+          </Text>
+        </View>
+        <Text style={[s.editorTitle, { color: c.text }]}>
+          How did money move?
+        </Text>
+        <Text style={[s.editorCopy, { color: c.textSecondary }]}>
+          Choose one clear action, then enter the amount.
+        </Text>
+        <View
+          style={[
+            s.amountCard,
+            { backgroundColor: c.surface, borderColor: c.border },
+          ]}
+        >
+          <Text style={[s.amountPrefix, { color: c.textSecondary }]}>₹</Text>
+          <TextInput
+            autoFocus
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType="decimal-pad"
+            placeholder="0"
+            placeholderTextColor={c.textSecondary}
+            style={[s.editorAmount, { color: c.text }]}
+          />
+        </View>
+        <View style={s.editorChoices}>
+          {(Object.keys(actionCopy) as LedgerDirection[]).map((item) => {
+            const selected = direction === item;
+            const color =
+              item === "RECEIVED"
+                ? "#179B67"
+                : item === "PAID"
+                  ? "#D75B45"
+                  : c.brand;
+            return (
+              <Pressable
+                key={item}
+                onPress={() => setDirection(item)}
+                style={[
+                  s.editorChoice,
+                  {
+                    backgroundColor: selected ? color : c.surface,
+                    borderColor: selected ? color : c.border,
+                  },
+                ]}
+              >
+                <SymbolView
+                  name={actionCopy[item].icon}
+                  size={15}
+                  tintColor={selected ? "#fff" : color}
+                />
+                <Text
+                  style={[
+                    s.editorChoiceLabel,
+                    { color: selected ? "#fff" : c.text },
+                  ]}
+                >
+                  {actionCopy[item].label}
+                </Text>
+                <Text
+                  style={[
+                    s.editorChoiceHint,
+                    {
+                      color: selected
+                        ? "rgba(255,255,255,.82)"
+                        : c.textSecondary,
+                    },
+                  ]}
+                >
+                  {item === "LENT"
+                    ? "They owe you"
+                    : item === "BORROWED"
+                      ? "You owe them"
+                      : item === "RECEIVED"
+                        ? "They settled"
+                        : "You settled"}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <View
+          style={[
+            s.noteCard,
+            { backgroundColor: c.surface, borderColor: c.border },
+          ]}
+        >
+          <SymbolView
+            name="text.alignleft"
+            size={15}
+            tintColor={c.textSecondary}
+          />
+          <TextInput
+            value={note}
+            onChangeText={setNote}
+            placeholder="Add a note, if useful"
+            placeholderTextColor={c.textSecondary}
+            style={[s.editorNote, { color: c.text }]}
+          />
+        </View>
+        <Text style={[s.editorExplanation, { color: c.textSecondary }]}>
+          {actionCopy[direction].detail}
+        </Text>
+      </ScrollView>
+      <View
+        style={[
+          s.editorFooter,
+          { backgroundColor: c.background, borderColor: c.border },
+        ]}
+      >
+        <Pressable
+          disabled={saving}
+          onPress={onSave}
+          style={[
+            s.editorSave,
+            { backgroundColor: c.brand, opacity: saving ? 0.65 : 1 },
+          ]}
+        >
+          {saving ? (
+            <KasaSpinner size={18} color="#fff" />
+          ) : (
+            <>
+              <Text style={s.editorSaveText}>Save entry</Text>
+              <SymbolView name="arrow.right" size={15} tintColor="#fff" />
+            </>
+          )}
+        </Pressable>
       </View>
-      <Text style={[s.actionText, { color }]}>{label}</Text>
-    </Pressable>
+    </KeyboardAvoidingView>
   );
 }
 function Bubble({ entry, brand }: { entry: LedgerEntry; brand: string }) {
@@ -754,4 +913,87 @@ const s = StyleSheet.create({
     alignItems: "center",
   },
   saveText: { color: "#fff", fontSize: 12, fontWeight: "900" },
+  editorScreen: { flex: 1 },
+  editorContent: { padding: 20, paddingTop: 11, paddingBottom: 28 },
+  editorTop: { flexDirection: "row", alignItems: "center", gap: 12 },
+  editorBack: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  editorKicker: { fontSize: 9, fontWeight: "900", letterSpacing: 1.1 },
+  editorTitle: {
+    fontSize: 28,
+    fontWeight: "900",
+    letterSpacing: -1,
+    marginTop: 27,
+  },
+  editorCopy: { fontSize: 11, lineHeight: 17, marginTop: 4 },
+  amountCard: {
+    height: 104,
+    borderWidth: 1,
+    borderRadius: 27,
+    marginTop: 22,
+    paddingHorizontal: 19,
+    alignItems: "center",
+    flexDirection: "row",
+  },
+  amountPrefix: { fontSize: 31, fontWeight: "900", marginRight: 7 },
+  editorAmount: {
+    flex: 1,
+    height: "100%",
+    fontSize: 43,
+    fontWeight: "900",
+    letterSpacing: -1.7,
+  },
+  editorChoices: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 9,
+    marginTop: 17,
+  },
+  editorChoice: {
+    width: "48.6%",
+    minHeight: 88,
+    borderWidth: 1,
+    borderRadius: 21,
+    padding: 13,
+  },
+  editorChoiceLabel: { fontSize: 12, fontWeight: "900", marginTop: 9 },
+  editorChoiceHint: { fontSize: 9, marginTop: 3 },
+  noteCard: {
+    height: 54,
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    marginTop: 17,
+  },
+  editorNote: { flex: 1, height: "100%", fontSize: 12 },
+  editorExplanation: {
+    fontSize: 10,
+    lineHeight: 15,
+    marginTop: 12,
+    textAlign: "center",
+  },
+  editorFooter: {
+    borderTopWidth: 1,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 15,
+  },
+  editorSave: {
+    height: 53,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  editorSaveText: { color: "#fff", fontSize: 12, fontWeight: "900" },
 });
