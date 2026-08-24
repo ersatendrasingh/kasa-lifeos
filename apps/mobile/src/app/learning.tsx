@@ -33,7 +33,6 @@ const types: LearningTrack["type"][] = [
   "PRACTICE",
   "CERTIFICATION",
 ];
-const studio = "#5067F5";
 const nice = (value: string) => value[0] + value.slice(1).toLowerCase();
 const progress = (track: LearningTrack) =>
   track.lessons.length
@@ -152,13 +151,13 @@ export default function LearningScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => void load(true)}
-              tintColor={studio}
+              tintColor={c.brand}
             />
           }
           showsVerticalScrollIndicator={false}
         >
           <AppHeader label="Learning" />
-          <Text style={[s.kicker, { color: studio }]}>LEARNING STUDIO</Text>
+          <Text style={[s.kicker, { color: c.brand }]}>LEARNING STUDIO</Text>
           <Text style={[s.title, { color: c.text }]}>
             Build knowledge that stays.
           </Text>
@@ -186,12 +185,12 @@ export default function LearningScreen() {
                   : "Add a track to set your rhythm"}
               </Text>
             </View>
-            <View style={[s.ring, { borderColor: studio }]} />
+            <View style={[s.ring, { borderColor: c.brand }]} />
           </View>
           {focus && (
             <Pressable
               onPress={() => setSelected(focus)}
-              style={[s.focus, { backgroundColor: studio }]}
+              style={[s.focus, { backgroundColor: c.brand }]}
             >
               <Text style={s.focusKicker}>CONTINUE LEARNING</Text>
               <Text style={s.focusTitle}>{focus.title}</Text>
@@ -212,15 +211,15 @@ export default function LearningScreen() {
                   style={s.studyButton}
                 >
                   {busy ? (
-                    <KasaSpinner size={16} color={studio} />
+                    <KasaSpinner size={16} color={c.brand} />
                   ) : (
                     <>
                       <SymbolView
                         name="play.fill"
                         size={13}
-                        tintColor={studio}
+                        tintColor={c.brand}
                       />
-                      <Text style={[s.studyText, { color: studio }]}>
+                      <Text style={[s.studyText, { color: c.brand }]}>
                         Study 25 min
                       </Text>
                     </>
@@ -233,7 +232,7 @@ export default function LearningScreen() {
           <View style={s.sectionHead}>
             <Text style={[s.heading, { color: c.text }]}>Your tracks</Text>
             <Pressable onPress={() => setCreate(true)}>
-              <Text style={[s.add, { color: studio }]}>+ ADD TRACK</Text>
+              <Text style={[s.add, { color: c.brand }]}>+ ADD TRACK</Text>
             </Pressable>
           </View>
           {loading ? (
@@ -251,7 +250,7 @@ export default function LearningScreen() {
                 ]}
               >
                 <View style={s.trackTop}>
-                  <Text style={[s.trackType, { color: studio }]}>
+                  <Text style={[s.trackType, { color: c.brand }]}>
                     {nice(track.type)}
                   </Text>
                   <Text style={[s.trackPercent, { color: c.text }]}>
@@ -270,7 +269,7 @@ export default function LearningScreen() {
                     style={[
                       s.fill,
                       {
-                        backgroundColor: studio,
+                        backgroundColor: c.brand,
                         width: `${progress(track)}%`,
                       },
                     ]}
@@ -288,7 +287,7 @@ export default function LearningScreen() {
               <SymbolView
                 name="graduationcap.fill"
                 size={30}
-                tintColor={studio}
+                tintColor={c.brand}
               />
               <Text style={[s.emptyTitle, { color: c.text }]}>
                 Start your first track
@@ -298,7 +297,7 @@ export default function LearningScreen() {
                 it gets lost.
               </Text>
               <Pressable onPress={() => setCreate(true)}>
-                <Text style={[s.emptyAction, { color: studio }]}>
+                <Text style={[s.emptyAction, { color: c.brand }]}>
                   Create a track →
                 </Text>
               </Pressable>
@@ -333,7 +332,7 @@ export default function LearningScreen() {
                     tintColor={c.text}
                   />
                 </Pressable>
-                <Text style={[s.trackType, { color: studio }]}>
+                <Text style={[s.trackType, { color: c.brand }]}>
                   {nice(selected.type)}
                 </Text>
                 <Text style={[s.sheetTitle, { color: c.text }]}>
@@ -353,7 +352,7 @@ export default function LearningScreen() {
                         minutes: 25,
                       })
                     }
-                    style={[s.primary, { backgroundColor: studio }]}
+                    style={[s.primary, { backgroundColor: c.brand }]}
                   >
                     <Text style={s.primaryText}>Log 25-minute session</Text>
                   </Pressable>
@@ -402,7 +401,7 @@ export default function LearningScreen() {
                           }
                           size={19}
                           tintColor={
-                            lesson.completedAt ? studio : c.textSecondary
+                            lesson.completedAt ? c.brand : c.textSecondary
                           }
                         />
                         <Text
@@ -493,8 +492,8 @@ export default function LearningScreen() {
                     style={[
                       s.type,
                       {
-                        backgroundColor: type === item ? "#5067F5" : c.surface,
-                        borderColor: type === item ? "#5067F5" : c.border,
+                        backgroundColor: type === item ? c.brand : c.surface,
+                        borderColor: type === item ? c.brand : c.border,
                       },
                     ]}
                   >
@@ -523,6 +522,9 @@ export default function LearningScreen() {
                   },
                 ]}
               />
+              <Text style={[s.fieldLabel, { color: c.textSecondary }]}>
+                WEEKLY FOCUS
+              </Text>
               <View style={s.goalRow}>
                 <TextInput
                   value={goal}
@@ -575,7 +577,7 @@ export default function LearningScreen() {
                 onPress={() => void saveTrack()}
                 style={[
                   s.primary,
-                  { backgroundColor: "#5067F5", opacity: busy ? 0.65 : 1 },
+                  { backgroundColor: c.brand, opacity: busy ? 0.65 : 1 },
                 ]}
               >
                 {busy ? (
